@@ -203,8 +203,8 @@ class t_cuti extends \App\Models\BasicModels\t_cuti
             $tanggalPengajuan = Carbon::parse($arrayData['date_to']);
             $sekarang = Carbon::now();
 
-            $isBulanLalu = $tanggalPengajuan->month == $sekarang->copy()->subMonth()->month && 
-            $tanggalPengajuan->year == $sekarang->copy()->subMonth()->year;
+            $isBulanLalu = $tanggalPengajuan->month == $sekarang->copy()->subMonthNoOverflow()->month && 
+            $tanggalPengajuan->year == $sekarang->copy()->subMonthNoOverflow()->year;
 
             if ($isBulanLalu) {
                 if ($sekarang->day > 5) {
