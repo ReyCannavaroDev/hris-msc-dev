@@ -1,0 +1,25 @@
+<?php
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+class presensiabsensi extends Migration
+{
+    protected $tableName = "presensi_absensi";
+    
+    public function up()
+    {
+        Schema::table($this->tableName, function (Blueprint $table) {
+            //$table->string('_existColumnName_')->change();
+            //$table->string('_columnName_');
+            // $table->dropColumn(['catatan']);
+            // $table->bigInteger('t_jadwal_kerja_id')->comment('{"src":"t_jadwal_kerja.id"}')->nullable();
+            // $table->bigInteger('t_jadwal_kerja_det_id')->comment('{"src":"t_jadwal_kerja_det.id"}')->nullable();
+            // $table->bigInteger('t_jadwal_kerja_det_hari_id')->comment('{"src":"t_jadwal_kerja_det_hari.id"}')->nullable();
+            // $table->string('checkin_foto')->nullable()->change();
+            // $table->string('checkout_foto')->nullable()->change();
+            // $table->text('catatan')->nullable();
+            // $table->text('catatan_out')->nullable();
+        });
+    }
+}
