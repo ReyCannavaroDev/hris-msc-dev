@@ -31,8 +31,21 @@ class presensi_absensi extends \App\Models\BasicModels\presensi_absensi
 
     public function onRetrieved($model)
     {
-        $model->checkout_foto = url('').'/'.$model->checkout_foto;
-        $model->checkin_foto = url('').'/'.$model->checkin_foto;
+        $model->checkout_foto = $this->normalizeFotoUrl($model->checkout_foto ?? null);
+        $model->checkin_foto = $this->normalizeFotoUrl($model->checkin_foto ?? null);
+    }
+
+    private function normalizeFotoUrl($path = null)
+    {
+        if (!$path) {
+            return null;
+        }
+
+        if (str_starts_with($path, 'http://') || str_starts_with($path, 'https://')) {
+            return $path;
+        }
+
+        return url($path);
     }
 
     public function default_users()
@@ -222,6 +235,8 @@ class presensi_absensi extends \App\Models\BasicModels\presensi_absensi
                 $status = $absensi->status;
                 $absensiData = $absensi;
                 $absensiData['presensi_absensi_id'] = $absensi?->id ?? 0;
+                $absensiData['checkin_foto'] = $this->normalizeFotoUrl($absensiData['checkin_foto'] ?? null);
+                $absensiData['checkout_foto'] = $this->normalizeFotoUrl($absensiData['checkout_foto'] ?? null);
             } else {
                 $status = "NOT ATTEND";
                 $absensiData = ['status' => 'NOT ATTEND'];
