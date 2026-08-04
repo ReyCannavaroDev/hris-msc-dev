@@ -25,9 +25,19 @@ const totalDivisi = ref(0)
 const totalDepartemen = ref(0)
 const pegawaiAbsen = ref(0)
 const pegawaiMasuk = ref(0)
+const pegawaiTidakHadir = ref([])
+const showPegawaiAbsenModal = ref(false)
 const topLate = ref([])
 const topAbsent = ref([])
 const topPerfect = ref([])
+
+const openPegawaiAbsenModal = () => {
+  showPegawaiAbsenModal.value = true
+}
+
+const closePegawaiAbsenModal = () => {
+  showPegawaiAbsenModal.value = false
+}
 
 
 // ------------------------------ PERSIAPAN
@@ -72,6 +82,7 @@ onMounted(async ()=>{
       totalDepartemen.value = dataDash?.dir_count ?? 0
       pegawaiAbsen.value = dataDash?.total_absen ?? 0
       pegawaiMasuk.value = dataDash?.total_hadir ?? 0
+      pegawaiTidakHadir.value = dataDash?.absent_today || []
 
 
 

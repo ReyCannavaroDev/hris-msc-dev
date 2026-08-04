@@ -13,7 +13,7 @@
       <div class="text-green-500 font-bold text-2xl"> @{{ totalDivisi }} </div>
     </div>
 
-    <div class="bg-white bg-opacity-80 hover:!bg-opacity-95 shadow-lg py-5 rounded-lg px-7 flex flex-col gap-2">
+    <div @click="openPegawaiAbsenModal" class="bg-white bg-opacity-80 hover:!bg-opacity-95 shadow-lg py-5 rounded-lg px-7 flex flex-col gap-2 cursor-pointer">
       <p> Pegawai Tidak Hadir Hari Ini </p>
       <div class="text-red-500 font-bold text-2xl"> @{{pegawaiAbsen}} </div>
     </div>
@@ -121,3 +121,38 @@
       </column-chart>
     </div>
   </div>
+
+  <div v-show="showPegawaiAbsenModal" class="fixed inset-0 flex items-center justify-center z-50">
+    <div @click="closePegawaiAbsenModal" class="modal-overlay fixed inset-0 bg-black opacity-50"></div>
+    <div class="modal-container bg-white w-[90%] md:w-[520px] mx-auto rounded shadow-lg z-50 overflow-hidden">
+      <div class="modal-content py-4 text-left px-6">
+        <div class="modal-header flex items-center justify-between flex-wrap border-b pb-3">
+          <div>
+            <h2 class="font-semibold text-md">Pegawai Tidak Hadir Hari Ini</h2>
+            <p class="text-xs text-gray-500">Total: @{{ pegawaiTidakHadir.length }} pegawai</p>
+          </div>
+          <button @click="closePegawaiAbsenModal" class="text-gray-500 hover:text-gray-800 text-xl leading-none">&times;</button>
+        </div>
+
+        <div class="modal-body max-h-[60vh] overflow-y-auto py-3">
+          <div v-if="pegawaiTidakHadir.length" class="divide-y divide-gray-200">
+            <div v-for="(pegawai, index) in pegawaiTidakHadir" :key="pegawai.id || index" class="py-2 flex items-start gap-3">
+              <span class="text-xs text-gray-500 w-7 pt-1">@{{ index + 1 }}.</span>
+              <div>
+                <p class="font-medium text-gray-800">@{{ pegawai.nama_lengkap }}</p>
+                <p class="text-xs text-gray-500">@{{ pegawai.tanggal }}</p>
+              </div>
+            </div>
+          </div>
+          <p v-else class="text-center text-gray-500 py-8">Tidak ada pegawai yang tidak hadir hari ini.</p>
+        </div>
+
+        <div class="modal-footer flex justify-end border-t pt-3">
+          <button @click="closePegawaiAbsenModal" class="modal-button bg-yellow-500 hover:bg-yellow-600 text-white font-semibold ml-2 px-3 py-1 rounded-sm">
+            Tutup
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

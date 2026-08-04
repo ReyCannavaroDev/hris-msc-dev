@@ -90,10 +90,34 @@ class m_dir extends \App\Models\BasicModels\m_dir
             ->day(20)
             ->format('Y-m-d');        
 
-        $total_hadir = default_users::whereHas('presensi_absensi', function($q) use ($now){
-            $q->where('tanggal', $now);
-        })->count();
-        $tidak_hadir = $total_kary - $total_hadir;
+        $total_hadir = default_users::whereHas('m_kary', function($q){
+                $q->where('is_active', true);
+            })
+            ->whereHas('presensi_absensi', function($q) use ($now){
+                $q->where('tanggal', $now);
+            })->count();
+
+        $pegawai_tidak_hadir = default_users::with('m_kary')
+            ->whereHas('m_kary', function($q){
+                $q->where('is_active', true);
+            })
+            ->whereDoesntHave('presensi_absensi', function($q) use ($now){
+                $q->where('tanggal', $now);
+            })
+            ->get()
+            ->sortBy(function($user) {
+                return $user->m_kary?->nama_lengkap ?? $user->name ?? '';
+            })
+            ->values()
+            ->map(function($user) use ($now) {
+                return [
+                    'id' => $user->id,
+                    'm_kary_id' => $user->m_kary_id,
+                    'nama_lengkap' => $user->m_kary?->nama_lengkap ?? $user->name ?? '-',
+                    'tanggal' => $now,
+                ];
+            });
+        $tidak_hadir = $pegawai_tidak_hadir->count();
 
         $m_dir = $dir_query->get();
         $salary_per_dir = []; // array penampung
@@ -140,6 +164,7 @@ class m_dir extends \App\Models\BasicModels\m_dir
             "div_count" => $div_count,
             "total_hadir" => $total_hadir,
             "total_absen" => $tidak_hadir,
+            "absent_today" => $pegawai_tidak_hadir,
             "dir_salary" => $salary_per_dir,
             "late"      => $stat['top_late'],
             "absent"    => $stat['top_absent'],
