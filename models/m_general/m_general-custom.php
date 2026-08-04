@@ -2,6 +2,8 @@
 
 namespace App\Models\CustomModels;
 
+use Illuminate\Support\Str;
+
 class m_general extends \App\Models\BasicModels\m_general
 {    
     public function __construct()
@@ -87,12 +89,59 @@ class m_general extends \App\Models\BasicModels\m_general
             return [
                 "errors" => ['Maaf akun anda tidak memiliki akses untuk menambahkan data']
             ];
+
+        $arrayData['key'] = $this->generateAutoGeneralField($arrayData, 'key');
+        $arrayData['code'] = $this->generateAutoGeneralField($arrayData, 'code');
+
         return [
             "model"  => $model,
             "data"   => array_merge($arrayData,[
                 'm_dir_id' =>  $m_dir_id
             ])
         ];
+    }
+
+    private function generateAutoGeneralField(array $arrayData, string $field): string
+    {
+        $group = strtoupper(trim((string)($arrayData['group'] ?? '')));
+        $value = trim((string)($arrayData['value'] ?? ''));
+        $latest = $this->whereRaw('UPPER("group") = ?', [$group])
+            ->whereNotNull($field)
+            ->where($field, '!=', '')
+            ->orderBy('id', 'desc')
+            ->value($field);
+
+        if ($latest && preg_match('/^(.*?)(\d+)$/', (string) $latest, $matches)) {
+            $prefix = $matches[1];
+            $number = $matches[2];
+            $nextNumber = (int) $number + 1;
+            return strtoupper($prefix . str_pad((string) $nextNumber, strlen($number), '0', STR_PAD_LEFT));
+        }
+
+        $baseText = $field === 'code'
+            ? trim($group . ' ' . $value)
+            : $value;
+
+        $base = Str::of($baseText)
+            ->lower()
+            ->ascii()
+            ->replaceMatches('/[^a-z0-9]+/', '-')
+            ->trim('-')
+            ->upper()
+            ->toString();
+
+        if ($base === '') {
+            $base = $field === 'code' ? 'GENERAL-CODE' : 'GENERAL-KEY';
+        }
+
+        $candidate = $base;
+        $index = 1;
+        while ($this->where('group', $group)->where($field, $candidate)->exists()) {
+            $index++;
+            $candidate = $base . '-' . $index;
+        }
+
+        return $candidate;
     }
     
     public function scopeGenProvinsi($model){

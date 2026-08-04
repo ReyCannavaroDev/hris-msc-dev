@@ -30,6 +30,26 @@ const values = reactive({
   is_active: true
 })
 
+const isAutoMode = () => ['Create', 'Copy', 'Tambah'].includes(actionText.value)
+
+const normalizeAutoText = (text = '') => {
+  return String(text)
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+}
+
+const syncAutoGeneralFields = () => {
+  if (!isAutoMode()) return
+
+  const groupSlug = normalizeAutoText(values.group)
+  const valueSlug = normalizeAutoText(values.value)
+
+  values.key = valueSlug
+  values.code = groupSlug && valueSlug ? `${groupSlug}-${valueSlug}` : (valueSlug || groupSlug)
+}
+
 onBeforeMount(async () => {
   // tampilkan default direktorat dengan store user comp.nama
   values.direktorat = store.user.data?.direktorat
@@ -68,6 +88,8 @@ onBeforeMount(async () => {
   for (const key in initialValues) {
     values[key] = initialValues[key]
   }
+
+  syncAutoGeneralFields()
 })
 
 let _id = 0
@@ -128,6 +150,7 @@ async function onSave() {
   try {
     const isCreating = ['Create', 'Copy', 'Tambah'].includes(actionText.value)
     const dataURL = `${store.server.url_backend}/operation${endpointApi}${isCreating ? '' : ('/' + route.params.id)}`
+    syncAutoGeneralFields()
     values.is_active = values.is_active ? 1 : 0
     isRequesting.value = true
     const res = await fetch(dataURL, {

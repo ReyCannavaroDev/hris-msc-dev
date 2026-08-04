@@ -43,12 +43,11 @@
           <label class="col-span-12">Key <label class="text-red-500 space-x-0 pl-0">*</label></label>
           <FieldX  
             class="col-span-12 !mt-0"
-            :bind="{ readonly: !actionText }"
+            :bind="{ readonly: true }"
             :value="values.key" :errorText="formErrors.key?'failed':''"
-            @input="v=>values.key=v"
             :hints="formErrors.key"
             label=""
-            placeholder="Tuliskan Key"
+            placeholder="Auto generate"
             :check="false" />
         </div>
         
@@ -58,7 +57,7 @@
             class="col-span-12 !mt-0"
             :bind="{ readonly: !actionText, capitalized: true }"
             :value="values.group" :errorText="formErrors.group?'failed':''"
-            @input="v=>values.group=v"
+            @input="v=>{ values.group=v; syncAutoGeneralFields() }"
             :hints="formErrors.group"
             label=""
             placeholder="Tuliskan Group"
@@ -69,12 +68,11 @@
           <label class="col-span-12">Code</label>  
           <FieldX  
             class="col-span-12 !mt-0"
-            :bind="{ readonly: !actionText }"
+            :bind="{ readonly: true }"
             :value="values.code" :errorText="formErrors.code?'failed':''"
-            @input="v=>values.code=v"
             :hints="formErrors.code"
             label=""
-            placeholder="Tuliskan Code"
+            placeholder="Auto generate"
             :check="false" />
         </div>
 
@@ -84,7 +82,7 @@
             class="col-span-12 !mt-0"
             :bind="{ readonly: !actionText }"
             :value="values.value" :errorText="formErrors.value?'failed':''"
-            @input="v=>values.value=v"
+            @input="v=>{ values.value=v; syncAutoGeneralFields() }"
             :hints="formErrors.value"
             label=""
             placeholder="Tuliskan Value"
