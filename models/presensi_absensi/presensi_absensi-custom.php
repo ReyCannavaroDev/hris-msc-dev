@@ -42,10 +42,29 @@ class presensi_absensi extends \App\Models\BasicModels\presensi_absensi
         }
 
         if (str_starts_with($path, 'http://') || str_starts_with($path, 'https://')) {
-            return $path;
+            $urlPath = parse_url($path, PHP_URL_PATH);
+            $path = $urlPath ? ltrim($urlPath, '/') : $path;
         }
 
-        return url($path);
+        return url('public/presensi_absensi/foto') . '?path=' . urlencode($path);
+    }
+
+    public function public_foto($req)
+    {
+        $path = urldecode((string)($req->path ?? ''));
+        $path = ltrim($path, '/');
+
+        if (!str_starts_with($path, 'uploads/presensi/')) {
+            abort(404);
+        }
+
+        $filePath = public_path($path);
+
+        if (!file_exists($filePath)) {
+            abort(404);
+        }
+
+        return response()->file($filePath);
     }
 
     public function default_users()
