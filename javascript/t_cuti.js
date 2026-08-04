@@ -750,7 +750,7 @@ const landing = reactive({
     params: {
       simplest: true,
       join: true,
-      searchfield: 'm_kary.nama_lengkap, alasan.value, tipe_cuti.value, date_from, date_to, status',
+      searchfield: 'm_kary.nama_lengkap, m_dir.nama, alasan.value, tipe_cuti.value, date_from, date_to, status',
       where: `${!store.user.data?.is_superadmin ? ('this.m_kary_id=' + store.user.data?.m_kary_id ?? 0) : ''}`
     },
     onsuccess(response) {
@@ -781,6 +781,16 @@ const landing = reactive({
   {
     field: 'm_kary.nama_lengkap',
     headerName: 'Nama Karyawan',
+    filter: true,
+    sortable: true,
+    flex: 1,
+    filter: 'ColFilter',
+    resizable: true,
+    cellClass: ['border-r', '!border-gray-200', 'justify-start']
+  },
+  {
+    field: 'm_dir.nama',
+    headerName: 'Unit',
     filter: true,
     sortable: true,
     flex: 1,
