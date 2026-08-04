@@ -46,7 +46,64 @@ class presensi_absensi extends \App\Models\BasicModels\presensi_absensi
             $path = $urlPath ? ltrim($urlPath, '/') : $path;
         }
 
+        $filePath = $this->resolvePresensiFotoPath($path);
+        if ($filePath) {
+            $mime = mime_content_type($filePath) ?: 'image/webp';
+            return 'data:' . $mime . ';base64,' . base64_encode(file_get_contents($filePath));
+        }
+
         return url('public/presensi_absensi/foto') . '?path=' . urlencode($path);
+    }
+
+    private function resolvePresensiFotoPath($path = null)
+    {
+        if (!$path) {
+            return null;
+        }
+
+        $path = urldecode((string)$path);
+        $path = ltrim($path, '/');
+
+        if (!str_starts_with($path, 'uploads/presensi/')) {
+            return null;
+        }
+
+        $candidates = [
+            public_path($path),
+            storage_path('app/public/' . $path),
+            storage_path('app/' . $path),
+        ];
+
+        foreach ($candidates as $candidate) {
+            if ($candidate && file_exists($candidate)) {
+                return $candidate;
+            }
+        }
+
+        $fileName = basename($path);
+        $searchRoots = [
+            public_path('uploads/presensi'),
+            storage_path('app/public/uploads/presensi'),
+            storage_path('app/uploads/presensi'),
+        ];
+
+        foreach ($searchRoots as $root) {
+            if (!is_dir($root)) {
+                continue;
+            }
+
+            $iterator = new \RecursiveIteratorIterator(
+                new \RecursiveDirectoryIterator($root, \FilesystemIterator::SKIP_DOTS)
+            );
+
+            foreach ($iterator as $file) {
+                if ($file->isFile() && $file->getFilename() === $fileName) {
+                    return $file->getPathname();
+                }
+            }
+        }
+
+        return null;
     }
 
     public function public_foto($req)
@@ -58,9 +115,9 @@ class presensi_absensi extends \App\Models\BasicModels\presensi_absensi
             abort(404);
         }
 
-        $filePath = public_path($path);
+        $filePath = $this->resolvePresensiFotoPath($path);
 
-        if (!file_exists($filePath)) {
+        if (!$filePath) {
             abort(404);
         }
 
