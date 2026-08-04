@@ -90,6 +90,13 @@ class generate_approval extends \App\Models\BasicModels\generate_approval
             })->values(); 
             $data->setCollection($filteredData);
         }
+
+        $data->setCollection(
+            $data->getCollection()->map(function($item) {
+                $item->unit = m_dir::where('id', $item->m_dir_id)->value('nama') ?? '-';
+                return $item;
+            })
+        );
         
         return response($data);
     }

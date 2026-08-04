@@ -80,6 +80,9 @@
                                 Pemohon
                             </th>
                             <th scope="col" class="px-6 py-3">
+                                Unit
+                            </th>
+                            <th scope="col" class="px-6 py-3">
                                 Tgl Transaksi
                             </th>
                             <th scope="col" class="px-6 py-3">
@@ -105,6 +108,9 @@
                         </th>
                         <td class="px-6 py-2">
                             {{ d.creator }}
+                        </td>
+                        <td class="px-6 py-2">
+                            {{ d.unit ?? '-' }}
                         </td>
                         <td class="px-6 py-2">
                             {{ d.trx_date }}
