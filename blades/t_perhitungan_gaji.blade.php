@@ -297,32 +297,62 @@
 
     <div class="p-6">
       <!-- Rekap Kehadiran Section -->
-      <div v-if="detailArrOpen.rekap" class="mb-6">
-        <h4 class="text-md font-semibold text-gray-700 mb-2">Rekap Kehadiran</h4>
-        <div class="grid grid-cols-2 md:grid-cols-3 gap-3">
-          <div class="bg-blue-50 p-3 rounded-lg border border-blue-100">
-            <div class="text-xs text-blue-500 font-bold uppercase">Hari Kerja</div>
-            <div class="text-lg text-gray-800 font-semibold">{{ detailArrOpen.rekap.hari_kerja }} Hari</div>
+      <div v-if="detailArrOpen.rekap" class="mb-6 border border-gray-200 rounded-xl shadow-sm bg-white">
+        <button @click="toggleRekap" class="w-full flex items-center justify-between px-5 py-4 bg-gray-50 hover:bg-gray-100 transition-colors focus:outline-none rounded-t-xl" :class="{'rounded-b-xl': !isRekapOpen}">
+          <div class="flex items-center gap-4">
+            <div class="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 shadow-inner">
+              <i class="fa fa-calendar-check text-lg"></i>
+            </div>
+            <div class="text-left">
+              <h4 class="text-[15px] font-bold text-gray-800">Rekapitulasi Kehadiran</h4>
+              <p class="text-[13px] text-gray-500 mt-0.5">Klik untuk melihat rincian presensi harian, lembur, dan keterlambatan.</p>
+            </div>
           </div>
-          <div class="bg-green-50 p-3 rounded-lg border border-green-100">
-            <div class="text-xs text-green-500 font-bold uppercase">Jumlah Hadir</div>
-            <div class="text-lg text-gray-800 font-semibold">{{ detailArrOpen.rekap.jumlah_hadir }} Hari</div>
+          <div class="w-8 h-8 rounded-full bg-white shadow-sm flex items-center justify-center border border-gray-200">
+            <i class="fa text-gray-400 transition-transform duration-200" :class="isRekapOpen ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
           </div>
-          <div class="bg-red-50 p-3 rounded-lg border border-red-100">
-            <div class="text-xs text-red-500 font-bold uppercase">Mangkir / Tdk Hadir</div>
-            <div class="text-lg text-gray-800 font-semibold">{{ detailArrOpen.rekap.hari_kerja - (detailArrOpen.rekap.jumlah_hadir + detailArrOpen.rekap.jumlah_cuti + detailArrOpen.rekap.tidak_absen_pulang) }} Hari</div>
+        </button>
+
+        <div v-show="isRekapOpen" class="border-t border-gray-200 p-6 bg-white rounded-b-xl">
+          <div class="grid grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-5">
+            <!-- stats cards -->
+            <div class="flex flex-col border-b border-gray-100 pb-3">
+              <span class="text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1">Hari Kerja (Target)</span>
+              <span class="text-xl font-bold text-gray-800">{{ detailArrOpen.rekap.hari_kerja }} <span class="text-sm font-medium text-gray-400">Hari</span></span>
+            </div>
+            <div class="flex flex-col border-b border-gray-100 pb-3">
+              <span class="text-[11px] font-bold text-emerald-600 uppercase tracking-wider mb-1">Total Hadir</span>
+              <span class="text-xl font-bold text-gray-800">{{ detailArrOpen.rekap.jumlah_hadir }} <span class="text-sm font-medium text-gray-400">Hari</span></span>
+            </div>
+            <div class="flex flex-col border-b border-gray-100 pb-3">
+              <span class="text-[11px] font-bold text-rose-500 uppercase tracking-wider mb-1">Tidak Hadir / Mangkir</span>
+              <span class="text-xl font-bold text-rose-600">{{ detailArrOpen.rekap.hari_kerja - (detailArrOpen.rekap.jumlah_hadir + detailArrOpen.rekap.jumlah_cuti + detailArrOpen.rekap.tidak_absen_pulang) }} <span class="text-sm font-medium text-rose-400">Hari</span></span>
+            </div>
+            <div class="flex flex-col">
+              <span class="text-[11px] font-bold text-amber-600 uppercase tracking-wider mb-1">Total Terlambat</span>
+              <span class="text-xl font-bold text-gray-800">{{ detailArrOpen.rekap.total_jam_terlambat }} <span class="text-sm font-medium text-gray-400">Jam</span></span>
+            </div>
+            <div class="flex flex-col">
+              <span class="text-[11px] font-bold text-indigo-500 uppercase tracking-wider mb-1">Lembur Hari Kerja</span>
+              <span class="text-xl font-bold text-gray-800">{{ Math.ceil(detailArrOpen.rekap.total_menit_lembur_kerja / 60) }} <span class="text-sm font-medium text-gray-400">Jam</span></span>
+            </div>
+            <div class="flex flex-col">
+              <span class="text-[11px] font-bold text-purple-600 uppercase tracking-wider mb-1">Lembur Hari Libur</span>
+              <span class="text-xl font-bold text-gray-800">{{ Math.ceil(detailArrOpen.rekap.total_menit_lembur_libur / 60) }} <span class="text-sm font-medium text-gray-400">Jam</span></span>
+            </div>
           </div>
-          <div class="bg-yellow-50 p-3 rounded-lg border border-yellow-100">
-            <div class="text-xs text-yellow-600 font-bold uppercase">Terlambat</div>
-            <div class="text-lg text-gray-800 font-semibold">{{ detailArrOpen.rekap.total_jam_terlambat }} Jam</div>
-          </div>
-          <div class="bg-purple-50 p-3 rounded-lg border border-purple-100">
-            <div class="text-xs text-purple-500 font-bold uppercase">Lembur Kerja</div>
-            <div class="text-lg text-gray-800 font-semibold">{{ Math.ceil(detailArrOpen.rekap.total_menit_lembur_kerja / 60) }} Jam</div>
-          </div>
-          <div class="bg-purple-50 p-3 rounded-lg border border-purple-100">
-            <div class="text-xs text-purple-500 font-bold uppercase">Lembur Libur</div>
-            <div class="text-lg text-gray-800 font-semibold">{{ Math.ceil(detailArrOpen.rekap.total_menit_lembur_libur / 60) }} Jam</div>
+
+          <!-- Rincian Terlambat Detail -->
+          <div v-if="detailArrOpen.terlambatComponents && detailArrOpen.terlambatComponents.length > 0" class="mt-6 bg-amber-50/50 rounded-xl p-5 border border-amber-100/60">
+            <h5 class="text-sm font-bold text-amber-900 mb-3 flex items-center gap-2">
+              <i class="fa fa-clock-o text-amber-500"></i> Breakdown Potongan Keterlambatan
+            </h5>
+            <div class="space-y-2.5">
+              <div v-for="(t, idx) in detailArrOpen.terlambatComponents" :key="idx" class="flex justify-between items-center text-sm py-1 border-b border-amber-100/40 last:border-0">
+                <span class="text-amber-800 font-medium">{{ t.label }}</span>
+                <span class="font-bold text-rose-600 tracking-wide">- Rp {{ Number(t.value).toLocaleString('id-ID') }}</span>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -398,7 +428,7 @@
   </div>
 </div>
 
-
+//jika esok hari programmer lain yang mengerjakan perhitungan gaji lagi, semangat yah cuy #yangrusakcumajamtidurbukanjamterbang
 
 
 @endverbatim

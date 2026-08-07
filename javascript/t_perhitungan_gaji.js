@@ -19,6 +19,7 @@ const detailArr = ref([])
 const titleOpen = ref('')
 const formErrors = ref({})
 const modalOpen = ref(false)
+const isRekapOpen = ref(false)
 const detailArrOpen = reactive({ items: [] })
 const tsId = `ts=` + (Date.parse(new Date()))
 
@@ -260,11 +261,19 @@ function openDetail(i) {
   detailArrOpen.totalBonus = totalBonus
   detailArrOpen.totalGaji = totalGaji
   detailArrOpen.rekap = detailArr.value[i]?.rekap ?? null
+  
+  // Also extract components related to Tardiness from the items so we can show them in the rekap
+  detailArrOpen.terlambatComponents = dataFormat.filter(x => x.label.toLowerCase().includes('terlambat') && x.factor === '-')
 
   const updatedRow = { ...detailArr.value[i], total_gaji: totalGaji, netto: totalGaji, total_potongan: totalPotongan}
   detailArr.value.splice(i, 1, updatedRow)
   preparedPayload.value = updatedRow
+  isRekapOpen.value = false // reset accordion state
   modalOpen.value = true
+}
+
+function toggleRekap() {
+  isRekapOpen.value = !isRekapOpen.value
 }
 
 function closeModal() {
