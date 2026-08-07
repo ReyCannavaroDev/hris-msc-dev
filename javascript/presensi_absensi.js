@@ -30,9 +30,14 @@ const openDateDetail = (e,item,check,data) => {
     }
     
   }
-  if(!item.checkout_foto?.includes(`http`)){
+  if(!item.checkout_foto?.includes(`http`) && !item.checkout_foto?.startsWith('data:')){
     if(item.checkout_foto){
       item.checkout_foto = `${store.server.url_backend}/${item.checkout_foto}`
+    }
+  }
+  if(!item.checkin_foto?.includes(`http`) && !item.checkin_foto?.startsWith('data:')){
+    if(item.checkin_foto){
+      item.checkin_foto = `${store.server.url_backend}/${item.checkin_foto}`
     }
   }
   check === 'checkin' ? isCheckin.value = true : isCheckin.value = false

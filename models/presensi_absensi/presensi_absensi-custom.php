@@ -41,6 +41,14 @@ class presensi_absensi extends \App\Models\BasicModels\presensi_absensi
             return null;
         }
 
+        if (str_starts_with($path, 'data:image')) {
+            return $path;
+        }
+
+        if (str_contains($path, 'public/presensi_absensi/foto?path=')) {
+            return $path;
+        }
+
         if (str_starts_with($path, 'http://') || str_starts_with($path, 'https://')) {
             $urlPath = parse_url($path, PHP_URL_PATH);
             $path = $urlPath ? ltrim($urlPath, '/') : $path;
