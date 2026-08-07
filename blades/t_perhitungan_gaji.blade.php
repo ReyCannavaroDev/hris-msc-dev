@@ -428,7 +428,7 @@
   </div>
 </div>
 
-//jika esok hari programmer lain yang mengerjakan perhitungan gaji lagi, semangat yah cuy #yangrusakcumajamtidurbukanjamterbang
+
 
 
 @endverbatim
