@@ -309,35 +309,38 @@ class t_potongan_presensi extends \App\Models\BasicModels\t_potongan_presensi
             }
 
             //hitung tidak masuk
-            $tipe_karyawan =
-                m_general::find($kary->tipe_karyawan_id)?->value ?? "KONTRAK";
+            $periode_gaji = strtoupper(
+                \App\Models\BasicModels\m_general::find($kary->periode_gaji_id)?->value ?? "BULANAN"
+            );
 
             if ($gaji_pokok > 0) {
-                $gaji_harian = (float) ($gaji_pokok / $rekap["hari_kerja"]);
+                $gaji_harian = (float) ($gaji_pokok / 25);
             } else {
                 $gaji_harian = 0;
             }
 
-            if ($tipe_karyawan === "KONTRAK") {
-                $value = $gaji_harian * 1.5 * $not_attend;
-                $defaultColumns[] = [
-                    "label" =>
-                        "Potongan Tidak Masuk Kerja (" . $not_attend . " Hari)",
-                    "factor" => "-",
-                    "value" => $value,
-                    "type" => "Harian",
-                    "can_adjust" => 1,
-                ];
-            } elseif ($tipe_karyawan === "TETAP") {
-                $value = 100000 * $not_attend;
-                $defaultColumns[] = [
-                    "label" =>
-                        "Potongan Tidak Masuk Kerja (" . $not_attend . " Hari)",
-                    "factor" => "-",
-                    "value" => $value,
-                    "type" => "Harian",
-                    "can_adjust" => 1,
-                ];
+            if ($not_attend > 0) {
+                if ($periode_gaji === "HARIAN") {
+                    $value = $gaji_harian * $not_attend;
+                    $defaultColumns[] = [
+                        "label" =>
+                            "Potongan Tidak Masuk Kerja (" . $not_attend . " Hari)",
+                        "factor" => "-",
+                        "value" => (int)$value,
+                        "type" => "Harian",
+                        "can_adjust" => 1,
+                    ];
+                } else { // BULANAN
+                    $value = $gaji_harian * 1.5 * $not_attend;
+                    $defaultColumns[] = [
+                        "label" =>
+                            "Potongan Tidak Masuk Kerja (" . $not_attend . " Hari)",
+                        "factor" => "-",
+                        "value" => (int)$value,
+                        "type" => "Bulanan",
+                        "can_adjust" => 1,
+                    ];
+                }
             }
 
             //hitung lembur

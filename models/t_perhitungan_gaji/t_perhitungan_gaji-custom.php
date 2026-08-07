@@ -329,21 +329,17 @@ class t_perhitungan_gaji extends \App\Models\BasicModels\t_perhitungan_gaji
         }
 
             //hitung tidak masuk
-            $tipe_karyawan = m_general::find($kary->tipe_karyawan_id)?->value ?? 'KONTRAK';
+            $periode_gaji = strtoupper(\App\Models\BasicModels\m_general::find($kary->periode_gaji_id)?->value ?? 'BULANAN');
 
             if($gaji_pokok > 0){
-                // $gaji_harian = (int)($gaji_pokok / $rekap['hari_kerja']);
                 $gaji_harian = (int)($gaji_pokok / 25);
-
             }else{
                 $gaji_harian = 0;
             }
 
-            //dd($not_attend);
-
             if($not_attend > 0){
-                if($tipe_karyawan != 'TETAP'){
-                    $value = (int)$gaji_harian * 1.5 * (int)$not_attend;
+                if($periode_gaji === 'HARIAN'){
+                    $value = (int)($gaji_harian * (int)$not_attend);
                     $defaultColumns[] = [
                             'label'      => 'Potongan Tidak Masuk Kerja (' . $not_attend . ' Hari)',
                             'factor'     => '-',
@@ -351,13 +347,13 @@ class t_perhitungan_gaji extends \App\Models\BasicModels\t_perhitungan_gaji
                             'type'       => 'Harian',
                             'can_adjust' => 1
                         ];
-                }elseif($tipe_karyawan === 'TETAP'){
-                    $value = 100000 * $not_attend;
+                }else { // BULANAN
+                    $value = (int)($gaji_harian * 1.5 * (int)$not_attend);
                     $defaultColumns[] = [
                             'label'      => 'Potongan Tidak Masuk Kerja (' . $not_attend . ' Hari)',
                             'factor'     => '-',
                             'value'      => (int)$value,
-                            'type'       => 'Harian',
+                            'type'       => 'Bulanan',
                             'can_adjust' => 1
                         ];
                 }
