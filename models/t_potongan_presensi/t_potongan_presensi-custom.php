@@ -480,9 +480,15 @@ class t_potongan_presensi extends \App\Models\BasicModels\t_potongan_presensi
     {
         $start = Carbon::parse($start);
         $end = Carbon::parse($end);
-        $period = CarbonPeriod::create($start, $end);
 
         $m_kary = m_kary::findOrFail($kary_id);
+
+        $tgl_masuk = $m_kary->tgl_masuk ? Carbon::parse($m_kary->tgl_masuk) : null;
+        if ($tgl_masuk && $tgl_masuk->greaterThan($start)) {
+            $start = clone $tgl_masuk;
+        }
+
+        $period = CarbonPeriod::create($start, $end);
 
         $userId = default_users::where("m_kary_id", $m_kary->id)
             ->pluck("id")

@@ -296,6 +296,37 @@
     </div>
 
     <div class="p-6">
+      <!-- Rekap Kehadiran Section -->
+      <div v-if="detailArrOpen.rekap" class="mb-6">
+        <h4 class="text-md font-semibold text-gray-700 mb-2">Rekap Kehadiran</h4>
+        <div class="grid grid-cols-2 md:grid-cols-3 gap-3">
+          <div class="bg-blue-50 p-3 rounded-lg border border-blue-100">
+            <div class="text-xs text-blue-500 font-bold uppercase">Hari Kerja</div>
+            <div class="text-lg text-gray-800 font-semibold">{{ detailArrOpen.rekap.hari_kerja }} Hari</div>
+          </div>
+          <div class="bg-green-50 p-3 rounded-lg border border-green-100">
+            <div class="text-xs text-green-500 font-bold uppercase">Jumlah Hadir</div>
+            <div class="text-lg text-gray-800 font-semibold">{{ detailArrOpen.rekap.jumlah_hadir }} Hari</div>
+          </div>
+          <div class="bg-red-50 p-3 rounded-lg border border-red-100">
+            <div class="text-xs text-red-500 font-bold uppercase">Mangkir / Tdk Hadir</div>
+            <div class="text-lg text-gray-800 font-semibold">{{ detailArrOpen.rekap.hari_kerja - (detailArrOpen.rekap.jumlah_hadir + detailArrOpen.rekap.jumlah_cuti + detailArrOpen.rekap.tidak_absen_pulang) }} Hari</div>
+          </div>
+          <div class="bg-yellow-50 p-3 rounded-lg border border-yellow-100">
+            <div class="text-xs text-yellow-600 font-bold uppercase">Terlambat</div>
+            <div class="text-lg text-gray-800 font-semibold">{{ detailArrOpen.rekap.total_jam_terlambat }} Jam</div>
+          </div>
+          <div class="bg-purple-50 p-3 rounded-lg border border-purple-100">
+            <div class="text-xs text-purple-500 font-bold uppercase">Lembur Kerja</div>
+            <div class="text-lg text-gray-800 font-semibold">{{ Math.ceil(detailArrOpen.rekap.total_menit_lembur_kerja / 60) }} Jam</div>
+          </div>
+          <div class="bg-purple-50 p-3 rounded-lg border border-purple-100">
+            <div class="text-xs text-purple-500 font-bold uppercase">Lembur Libur</div>
+            <div class="text-lg text-gray-800 font-semibold">{{ Math.ceil(detailArrOpen.rekap.total_menit_lembur_libur / 60) }} Jam</div>
+          </div>
+        </div>
+      </div>
+
       <div class="overflow-hidden border border-gray-300 rounded-lg">
         <table class="w-full border-collapse text-sm">
           <thead class="bg-gray-800 text-white sticky top-0">

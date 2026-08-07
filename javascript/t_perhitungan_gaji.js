@@ -259,6 +259,7 @@ function openDetail(i) {
   detailArrOpen.totalPotongan = totalPotongan
   detailArrOpen.totalBonus = totalBonus
   detailArrOpen.totalGaji = totalGaji
+  detailArrOpen.rekap = detailArr.value[i]?.rekap ?? null
 
   const updatedRow = { ...detailArr.value[i], total_gaji: totalGaji, netto: totalGaji, total_potongan: totalPotongan}
   detailArr.value.splice(i, 1, updatedRow)

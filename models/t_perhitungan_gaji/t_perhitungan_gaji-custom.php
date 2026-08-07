@@ -152,9 +152,9 @@ class t_perhitungan_gaji extends \App\Models\BasicModels\t_perhitungan_gaji
         }
 
         // check kehadiran karyawan
-        // $attendance = \DB::select("select public.employee_attendance(?,?)",[$firstDayOfMonth,@$kary->id ?? 0]);
         $rekap = $this->hitungRekap(@$kary->id, $firstDayOfMonth, $lastDayOfMonth);
-        // dd($rekap);
+        $this->currentRekap = $rekap;
+        
         if ($rekap) {
             $not_attend = $rekap["hari_kerja"] - ($rekap["jumlah_hadir"] + $rekap["jumlah_cuti"] + $rekap['tidak_absen_pulang']);
             $not_complete = $rekap['tidak_absen_pulang'];
@@ -620,7 +620,8 @@ class t_perhitungan_gaji extends \App\Models\BasicModels\t_perhitungan_gaji
                 'total_gaji' => $netto,
                 'total_tax'  => 0,
                 'netto'      => $nettoFinish,
-                'detail'     => $getBasicSalary
+                'detail'     => $getBasicSalary,
+                'rekap'      => $this->currentRekap ?? null
             ];
         } catch (\Exception $e) {
             return $this->helper->responseCatch($e);
@@ -694,6 +695,7 @@ class t_perhitungan_gaji extends \App\Models\BasicModels\t_perhitungan_gaji
                         'total_gaji'        => $gaji['total_gaji'],
                         'netto'             => $gaji['netto'],
                         'detail_gaji'       => $gaji['detail'],
+                        'rekap'             => $gaji['rekap'] ?? null,
                     ];
                 }
 
@@ -765,9 +767,15 @@ class t_perhitungan_gaji extends \App\Models\BasicModels\t_perhitungan_gaji
     {
         $start = Carbon::parse($start);
         $end = Carbon::parse($end);
-        $period = CarbonPeriod::create($start, $end);
 
         $m_kary = m_kary::findOrFail($kary_id);
+
+        $tgl_masuk = $m_kary->tgl_masuk ? Carbon::parse($m_kary->tgl_masuk) : null;
+        if ($tgl_masuk && $tgl_masuk->greaterThan($start)) {
+            $start = clone $tgl_masuk;
+        }
+
+        $period = CarbonPeriod::create($start, $end);
 
         $userId = default_users::where("m_kary_id", $m_kary->id)
             ->pluck("id")
