@@ -41,26 +41,12 @@ class presensi_absensi extends \App\Models\BasicModels\presensi_absensi
             return null;
         }
 
-        if (str_starts_with($path, 'data:image')) {
+        if (str_starts_with($path, 'data:image') || str_starts_with($path, 'http://') || str_starts_with($path, 'https://')) {
             return $path;
         }
 
-        if (str_contains($path, 'public/presensi_absensi/foto?path=')) {
-            return $path;
-        }
-
-        if (str_starts_with($path, 'http://') || str_starts_with($path, 'https://')) {
-            $urlPath = parse_url($path, PHP_URL_PATH);
-            $path = $urlPath ? ltrim($urlPath, '/') : $path;
-        }
-
-        $filePath = $this->resolvePresensiFotoPath($path);
-        if ($filePath) {
-            $mime = mime_content_type($filePath) ?: 'image/webp';
-            return 'data:' . $mime . ';base64,' . base64_encode(file_get_contents($filePath));
-        }
-
-        return url('public/presensi_absensi/foto') . '?path=' . urlencode($path);
+        // The file is saved in public/uploads/presensi, so it can be served directly via the app URL.
+        return url($path);
     }
 
     private function resolvePresensiFotoPath($path = null)
