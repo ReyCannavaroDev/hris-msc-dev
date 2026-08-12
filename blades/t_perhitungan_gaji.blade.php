@@ -326,7 +326,22 @@
             </div>
             <div class="flex flex-col border-b border-gray-100 pb-3">
               <span class="text-[11px] font-bold text-rose-500 uppercase tracking-wider mb-1">Tidak Hadir / Mangkir</span>
-              <span class="text-xl font-bold text-rose-600">{{ detailArrOpen.rekap.hari_kerja - (detailArrOpen.rekap.jumlah_hadir + detailArrOpen.rekap.jumlah_cuti + detailArrOpen.rekap.tidak_absen_pulang) }} <span class="text-sm font-medium text-rose-400">Hari</span></span>
+              <span class="text-xl font-bold text-rose-600">{{ detailArrOpen.rekap.not_attend ?? 0 }} <span class="text-sm font-medium text-rose-400">Hari</span></span>
+            </div>
+            
+            <div v-if="detailArrOpen.rekap.jumlah_cuti > 0" class="flex flex-col border-b border-gray-100 pb-3">
+              <span class="text-[11px] font-bold text-blue-500 uppercase tracking-wider mb-1">Cuti / Sakit</span>
+              <span class="text-xl font-bold text-blue-600">{{ detailArrOpen.rekap.jumlah_cuti }} <span class="text-sm font-medium text-blue-400">Hari</span></span>
+            </div>
+            
+            <div v-if="detailArrOpen.rekap.tidak_absen_pulang > 0" class="flex flex-col border-b border-gray-100 pb-3">
+              <span class="text-[11px] font-bold text-orange-500 uppercase tracking-wider mb-1">Tidak Absen Pulang</span>
+              <span class="text-xl font-bold text-orange-600">{{ detailArrOpen.rekap.tidak_absen_pulang }} <span class="text-sm font-medium text-orange-400">Hari</span></span>
+            </div>
+
+            <div v-if="detailArrOpen.rekap.hari_belum_join > 0" class="flex flex-col border-b border-gray-100 pb-3">
+              <span class="text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1">Penyesuaian Tanggal Masuk</span>
+              <span class="text-xl font-bold text-gray-600">{{ detailArrOpen.rekap.hari_belum_join }} <span class="text-sm font-medium text-gray-400">Hari</span></span>
             </div>
             <div class="flex flex-col">
               <span class="text-[11px] font-bold text-amber-600 uppercase tracking-wider mb-1">Total Terlambat</span>
