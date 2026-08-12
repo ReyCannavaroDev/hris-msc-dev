@@ -362,7 +362,7 @@
             <h5 class="text-sm font-bold text-amber-900 mb-3 flex items-center gap-2">
               <i class="fa fa-clock-o text-amber-500"></i> Breakdown Potongan Keterlambatan
             </h5>
-            <div class="space-y-2.5">
+            <div class="space-y-2.5 max-h-48 overflow-y-auto pr-2" style="scrollbar-width: thin; scrollbar-color: #fcd34d transparent;">
               <div v-for="(t, idx) in detailArrOpen.terlambatComponents" :key="idx" class="flex justify-between items-center text-sm py-1 border-b border-amber-100/40 last:border-0">
                 <span class="text-amber-800 font-medium">{{ t.label }}</span>
                 <span class="font-bold text-rose-600 tracking-wide">- Rp {{ Number(t.value).toLocaleString('id-ID') }}</span>
