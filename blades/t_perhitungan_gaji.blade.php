@@ -289,13 +289,13 @@
 <div v-show="modalOpen" class="fixed inset-0 flex items-center justify-center z-50 px-4">
   <div class="fixed inset-0 bg-black/50 backdrop-blur-sm transition-opacity" @click="closeModal"></div>
 
-  <div class="relative bg-white w-full max-w-4xl rounded-2xl shadow-2xl overflow-hidden">
-    <div class="flex items-center justify-between px-6 py-4 border-b bg-gray-100">
+  <div class="relative bg-white w-full max-w-4xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+    <div class="flex items-center justify-between px-6 py-4 border-b bg-gray-100 shrink-0">
       <h3 class="text-xl font-semibold text-gray-800">Rincian Gaji {{ titleOpen }}</h3>
-      <button @click="closeModal" class="text-gray-400 hover:text-gray-700 transition">✕</button>
+      <button @click="closeModal" class="text-gray-400 hover:text-gray-700 transition text-2xl font-bold">×</button>
     </div>
 
-    <div class="p-6">
+    <div class="p-6 overflow-y-auto" style="scrollbar-width: thin; scrollbar-color: #cbd5e1 transparent;">
       <!-- Rekap Kehadiran Section -->
       <div v-if="detailArrOpen.rekap" class="mb-6 border border-gray-200 rounded-xl shadow-sm bg-white">
         <button @click="toggleRekap" class="w-full flex items-center justify-between px-5 py-4 bg-gray-50 hover:bg-gray-100 transition-colors focus:outline-none rounded-t-xl" :class="{'rounded-b-xl': !isRekapOpen}">
@@ -432,7 +432,7 @@
       </div>
     </div>
 
-    <div class="flex justify-end gap-2 px-6 py-4 border-t bg-gray-50">
+    <div class="flex justify-end gap-2 px-6 py-4 border-t bg-gray-50 shrink-0">
       <button
         @click="closeModal"
         class="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition"
