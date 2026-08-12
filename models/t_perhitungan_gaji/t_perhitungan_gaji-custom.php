@@ -35,43 +35,7 @@ class t_perhitungan_gaji extends \App\Models\BasicModels\t_perhitungan_gaji
         // $lastDayOfMonth = $date->format('Y-m-d');
         $lastDayOfMonth = $periode_akhir;
 
-        $defaultColumns = [
-            [
-                'name' => 'gaji_pokok',
-                'type' => 'gaji_pokok_periode'
-            ]
-            // [
-            //     'name'  => 'uang_saku',
-            //     'type'  => 'uang_saku_periode'
-            // ],
-            // [
-            //     'name'  => 'tunjangan_posisi',
-            //     'type'  => 'tunjangan_posisi_periode'
-            // ],
-            // [
-            //     'name'  => 'tunjangan_kemahalan_id',
-            //     'table' => 'm_tunj_kemahalan',
-            //     'type'  => 'tunjangan_kemahalan_periode'
-            // ],
-            // [
-            //     'name'  => 'uang_makan',
-            //     'type'  => 'uang_makan'
-            // ],
-            // [
-            //     'name'  => 'tunjangan_tetap',
-            //     'type'  => 'tunjangan_tetap'
-            // ]
-        ];
-
-        foreach ($defaultColumns as $idx => $key) {
-            $defaultColumns[$idx]['label'] = $this->helper->snakeCaseToCapitalize($key['name']);
-            $defaultColumns[$idx]['factor'] = '+';
-            $defaultColumns[$idx]['value'] = (float) $standart_gaji?->gaji_pokok ?? 0;
-            $defaultColumns[$idx]['can_adjust'] = 1;
-            // if ($defaultColumns[$idx]['value'] == 0) {
-            //     unset($defaultColumns[$idx]);
-            // }
-        }
+        $defaultColumns = [];
 
         $gaji_pokok = 0;
         if ($standart_gaji != null) {
@@ -157,7 +121,11 @@ class t_perhitungan_gaji extends \App\Models\BasicModels\t_perhitungan_gaji
         $this->currentRekap = $rekap;
 
         if ($rekap) {
-            $not_attend = $rekap["hari_kerja"] - ($rekap["jumlah_hadir"] + $rekap["jumlah_cuti"] + $rekap['tidak_absen_pulang']);
+            $hari_kerja_full = $rekap['hari_kerja'] ?? 25;
+            $hari_belum_join = $rekap['hari_belum_join'] ?? 0;
+            $not_attend      = $rekap['not_attend'] ?? 0;
+            $hari_efektif    = $hari_kerja_full - $hari_belum_join;
+
             $not_complete = $rekap['tidak_absen_pulang'];
 
             $total_lembur_hari_biasa = ceil(
@@ -169,6 +137,38 @@ class t_perhitungan_gaji extends \App\Models\BasicModels\t_perhitungan_gaji
             );
 
             $total_terlambat = $rekap["total_jam_terlambat"];
+
+            $periode_gaji_type = strtoupper(\App\Models\BasicModels\m_general::find($kary->periode_gaji_id)?->value ?? 'BULANAN');
+            $gaji_harian_val = ($gaji_pokok > 0) ? (int) ($gaji_pokok / 25) : 0;
+
+            if ($periode_gaji_type === 'HARIAN') {
+                $base_gaji = $hari_efektif * $gaji_harian_val;
+                array_unshift($defaultColumns, [
+                    'label' => "Gaji Pokok (Berdasarkan $hari_efektif Hari Kerja x Rp " . number_format($gaji_harian_val,0,',','.') . ")",
+                    'factor' => '+',
+                    'value' => (int) $base_gaji,
+                    'type' => 'gaji_pokok_periode',
+                    'can_adjust' => 1
+                ]);
+            } else {
+                array_unshift($defaultColumns, [
+                    'label' => 'Gaji Pokok (Bulanan)',
+                    'factor' => '+',
+                    'value' => (float) $gaji_pokok,
+                    'type' => 'gaji_pokok_periode',
+                    'can_adjust' => 1
+                ]);
+
+                if ($hari_belum_join > 0) {
+                    $defaultColumns[] = [
+                        'label' => "Penyesuaian Tanggal Masuk ($hari_belum_join Hari x Rp " . number_format($gaji_harian_val,0,',','.') . ")",
+                        'factor' => '-',
+                        'value' => (int) ($hari_belum_join * $gaji_harian_val),
+                        'type' => 'Bulanan',
+                        'can_adjust' => 1
+                    ];
+                }
+            }
 
             //komponen gaji yang harian
             if (isset($standart_gaji_det)) {
@@ -340,7 +340,7 @@ class t_perhitungan_gaji extends \App\Models\BasicModels\t_perhitungan_gaji
                 if ($periode_gaji === 'HARIAN') {
                     $value = (int) ($gaji_harian * (int) $not_attend);
                     $defaultColumns[] = [
-                        'label' => 'Potongan Tidak Masuk Kerja (' . $not_attend . ' Hari)',
+                        'label' => "Potongan Tidak Masuk Kerja ($not_attend Hari x Rp " . number_format($gaji_harian,0,',','.') . ")",
                         'factor' => '-',
                         'value' => (int) $value,
                         'type' => 'Harian',
@@ -349,7 +349,7 @@ class t_perhitungan_gaji extends \App\Models\BasicModels\t_perhitungan_gaji
                 } else { // BULANAN
                     $value = (int) ($gaji_harian * 1.5 * (int) $not_attend);
                     $defaultColumns[] = [
-                        'label' => 'Potongan Tidak Masuk Kerja (' . $not_attend . ' Hari)',
+                        'label' => "Potongan Tidak Masuk Kerja ($not_attend Hari x Rp " . number_format($gaji_harian,0,',','.') . " x 1.5)",
                         'factor' => '-',
                         'value' => (int) $value,
                         'type' => 'Bulanan',
@@ -776,9 +776,10 @@ class t_perhitungan_gaji extends \App\Models\BasicModels\t_perhitungan_gaji
         $m_kary = m_kary::findOrFail($kary_id);
 
         $tgl_masuk = $m_kary->tgl_masuk ? Carbon::parse($m_kary->tgl_masuk) : null;
-        if ($tgl_masuk && $tgl_masuk->greaterThan($start)) {
-            $start = clone $tgl_masuk;
-        }
+        // We DO NOT override $start here, so the period is the full calendar month.
+        // if ($tgl_masuk && $tgl_masuk->greaterThan($start)) {
+        //     $start = clone $tgl_masuk;
+        // }
 
         $period = CarbonPeriod::create($start, $end);
 
@@ -839,6 +840,8 @@ class t_perhitungan_gaji extends \App\Models\BasicModels\t_perhitungan_gaji
         $total_jam_terlambat = 0;
         $total_jam_tidak_hadir = 0;
         $tidak_absen_pulang = 0;
+        $hari_belum_join = 0;
+        $not_attend_days = 0;
 
         // ambil data lembur dalam periode
         $lembur = t_lembur::where("m_kary_id", $kary_id)
@@ -891,8 +894,14 @@ class t_perhitungan_gaji extends \App\Models\BasicModels\t_perhitungan_gaji
                 $tipe = $liburDates[$key];
             }
 
+            // --- cek hari sebelum join ---
+            $is_before_join = false;
+            if ($tgl_masuk && $tanggal->copy()->startOfDay()->lessThan($tgl_masuk->copy()->startOfDay())) {
+                $is_before_join = true;
+            }
+
             // --- hitung hadir ---
-            if ($status === "ATTEND" && $tipe === 'KERJA') {
+            if ($status === "ATTEND" && $tipe === 'KERJA' && !$is_before_join) {
                 $jumlah_hadir++;
             }
 
@@ -938,7 +947,7 @@ class t_perhitungan_gaji extends \App\Models\BasicModels\t_perhitungan_gaji
             // }
 
             //hitung terlambat yang baru
-            if ($data && $data->checkin_time && $status === 'ATTEND') {
+            if ($data && $data->checkin_time && $status === 'ATTEND' && !$is_before_join) {
                 $hariIndex = Carbon::parse($data->tanggal)->translatedFormat('l');
                 $jadwalMulai = $data->t_jadwal_kerja_det_hari?->waktu_mulai;
                 if (!$jadwalMulai) {
@@ -961,24 +970,29 @@ class t_perhitungan_gaji extends \App\Models\BasicModels\t_perhitungan_gaji
 
             // --- hitung tidak hadir ---
             if ($tipe === "KERJA" && $status === "NOT ATTEND") {
-                if (
-                    $data &&
-                    $data->t_jadwal_kerja_det_hari?->waktu_mulai &&
-                    $data->t_jadwal_kerja_det_hari?->waktu_selesai
-                ) {
-                    $mulai = Carbon::parse(
-                        $data->t_jadwal_kerja_det_hari->waktu_mulai
-                    );
-                    $selesai = Carbon::parse(
-                        $data->t_jadwal_kerja_det_hari->waktu_selesai
-                    );
-                    $total_jam_tidak_hadir += $selesai->diffInHours($mulai) - 1;
+                if ($is_before_join) {
+                    $hari_belum_join++;
                 } else {
-                    $total_jam_tidak_hadir += 8; // fallback default 8 jam
+                    $not_attend_days++;
+                    if (
+                        $data &&
+                        $data->t_jadwal_kerja_det_hari?->waktu_mulai &&
+                        $data->t_jadwal_kerja_det_hari?->waktu_selesai
+                    ) {
+                        $mulai = Carbon::parse(
+                            $data->t_jadwal_kerja_det_hari->waktu_mulai
+                        );
+                        $selesai = Carbon::parse(
+                            $data->t_jadwal_kerja_det_hari->waktu_selesai
+                        );
+                        $total_jam_tidak_hadir += $selesai->diffInHours($mulai) - 1;
+                    } else {
+                        $total_jam_tidak_hadir += 8; // fallback default 8 jam
+                    }
                 }
             }
 
-            if ($tipe === "KERJA" && $status === "WORKING") {
+            if ($tipe === "KERJA" && $status === "WORKING" && !$is_before_join) {
                 $tidak_absen_pulang++;
             }
 
@@ -993,6 +1007,8 @@ class t_perhitungan_gaji extends \App\Models\BasicModels\t_perhitungan_gaji
             "hari_kerja" => collect($hasil)
                 ->where("tipe", "KERJA")
                 ->count(),
+            "hari_belum_join" => $hari_belum_join,
+            "not_attend" => $not_attend_days,
             "jumlah_hadir" => $jumlah_hadir,
             "tidak_absen_pulang" => $tidak_absen_pulang,
             "total_jam_tidak_hadir" => $total_jam_tidak_hadir,

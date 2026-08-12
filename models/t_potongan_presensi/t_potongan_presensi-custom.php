@@ -196,9 +196,10 @@ class t_potongan_presensi extends \App\Models\BasicModels\t_potongan_presensi
         );
         // dd($rekap);
         if (count($rekap)) {
-            $not_attend =
-                $rekap["hari_kerja"] -
-                ($rekap["jumlah_hadir"] + $rekap["jumlah_cuti"]);
+            $hari_kerja_full = $rekap['hari_kerja'] ?? 25;
+            $hari_belum_join = $rekap['hari_belum_join'] ?? 0;
+            $not_attend      = $rekap['not_attend'] ?? 0;
+            $hari_efektif    = $hari_kerja_full - $hari_belum_join;
 
             // $total_lembur_hari_biasa = ceil(
             //     $rekap["total_menit_lembur_kerja"] / 60
@@ -319,12 +320,23 @@ class t_potongan_presensi extends \App\Models\BasicModels\t_potongan_presensi
                 $gaji_harian = 0;
             }
 
+            if ($periode_gaji !== 'HARIAN' && $hari_belum_join > 0) {
+                $defaultColumns[] = [
+                    "label" =>
+                        "Penyesuaian Tanggal Masuk (" . $hari_belum_join . " Hari x Rp " . number_format($gaji_harian,0,',','.') . ")",
+                    "factor" => "-",
+                    "value" => (int)($hari_belum_join * $gaji_harian),
+                    "type" => "Bulanan",
+                    "can_adjust" => 1,
+                ];
+            }
+
             if ($not_attend > 0) {
                 if ($periode_gaji === "HARIAN") {
                     $value = $gaji_harian * $not_attend;
                     $defaultColumns[] = [
                         "label" =>
-                            "Potongan Tidak Masuk Kerja (" . $not_attend . " Hari)",
+                            "Potongan Tidak Masuk Kerja (" . $not_attend . " Hari x Rp " . number_format($gaji_harian,0,',','.') . ")",
                         "factor" => "-",
                         "value" => (int)$value,
                         "type" => "Harian",
@@ -334,7 +346,7 @@ class t_potongan_presensi extends \App\Models\BasicModels\t_potongan_presensi
                     $value = $gaji_harian * 1.5 * $not_attend;
                     $defaultColumns[] = [
                         "label" =>
-                            "Potongan Tidak Masuk Kerja (" . $not_attend . " Hari)",
+                            "Potongan Tidak Masuk Kerja (" . $not_attend . " Hari x Rp " . number_format($gaji_harian,0,',','.') . " x 1.5)",
                         "factor" => "-",
                         "value" => (int)$value,
                         "type" => "Bulanan",
@@ -487,9 +499,10 @@ class t_potongan_presensi extends \App\Models\BasicModels\t_potongan_presensi
         $m_kary = m_kary::findOrFail($kary_id);
 
         $tgl_masuk = $m_kary->tgl_masuk ? Carbon::parse($m_kary->tgl_masuk) : null;
-        if ($tgl_masuk && $tgl_masuk->greaterThan($start)) {
-            $start = clone $tgl_masuk;
-        }
+        // We DO NOT override $start here, so the period is the full calendar month.
+        // if ($tgl_masuk && $tgl_masuk->greaterThan($start)) {
+        //     $start = clone $tgl_masuk;
+        // }
 
         $period = CarbonPeriod::create($start, $end);
 
@@ -546,6 +559,8 @@ class t_potongan_presensi extends \App\Models\BasicModels\t_potongan_presensi
         $detail_menit_terlambat = [];
         $total_jam_terlambat = 0;
         $total_jam_tidak_hadir = 0;
+        $hari_belum_join = 0;
+        $not_attend_days = 0;
 
         // ambil data lembur dalam periode
         $lembur = t_lembur::where("m_kary_id", $kary_id)
@@ -599,8 +614,14 @@ class t_potongan_presensi extends \App\Models\BasicModels\t_potongan_presensi
                 $tipe = $liburDates[$key];
             }
 
+            // --- cek hari sebelum join ---
+            $is_before_join = false;
+            if ($tgl_masuk && $tanggal->copy()->startOfDay()->lessThan($tgl_masuk->copy()->startOfDay())) {
+                $is_before_join = true;
+            }
+
             // --- hitung hadir ---
-            if ($status === "ATTEND" && $tipe === "KERJA") {
+            if ($status === "ATTEND" && $tipe === "KERJA" && !$is_before_join) {
                 $jumlah_hadir++;
             }
 
@@ -623,7 +644,8 @@ class t_potongan_presensi extends \App\Models\BasicModels\t_potongan_presensi
             if (
                 $data &&
                 $data->checkin_time &&
-                $data->t_jadwal_kerja_det_hari?->waktu_mulai
+                $data->t_jadwal_kerja_det_hari?->waktu_mulai &&
+                $status === 'ATTEND' && !$is_before_join
             ) {
                 $checkin = Carbon::parse($data->checkin_time);
                 $jadwalMulai = Carbon::parse(
@@ -644,20 +666,25 @@ class t_potongan_presensi extends \App\Models\BasicModels\t_potongan_presensi
 
             // --- hitung tidak hadir ---
             if ($tipe === "KERJA" && $status === "NOT ATTEND") {
-                if (
-                    $data &&
-                    $data->t_jadwal_kerja_det_hari?->waktu_mulai &&
-                    $data->t_jadwal_kerja_det_hari?->waktu_selesai
-                ) {
-                    $mulai = Carbon::parse(
-                        $data->t_jadwal_kerja_det_hari->waktu_mulai
-                    );
-                    $selesai = Carbon::parse(
-                        $data->t_jadwal_kerja_det_hari->waktu_selesai
-                    );
-                    $total_jam_tidak_hadir += $selesai->diffInHours($mulai) - 1;
+                if ($is_before_join) {
+                    $hari_belum_join++;
                 } else {
-                    $total_jam_tidak_hadir += 8; // fallback default 8 jam
+                    $not_attend_days++;
+                    if (
+                        $data &&
+                        $data->t_jadwal_kerja_det_hari?->waktu_mulai &&
+                        $data->t_jadwal_kerja_det_hari?->waktu_selesai
+                    ) {
+                        $mulai = Carbon::parse(
+                            $data->t_jadwal_kerja_det_hari->waktu_mulai
+                        );
+                        $selesai = Carbon::parse(
+                            $data->t_jadwal_kerja_det_hari->waktu_selesai
+                        );
+                        $total_jam_tidak_hadir += $selesai->diffInHours($mulai) - 1;
+                    } else {
+                        $total_jam_tidak_hadir += 8; // fallback default 8 jam
+                    }
                 }
             }
 
@@ -671,6 +698,8 @@ class t_potongan_presensi extends \App\Models\BasicModels\t_potongan_presensi
             "hari_kerja" => collect($hasil)
                 ->where("tipe", "KERJA")
                 ->count(),
+            "hari_belum_join" => $hari_belum_join,
+            "not_attend" => $not_attend_days,
             "jumlah_hadir" => $jumlah_hadir,
             "total_jam_tidak_hadir" => $total_jam_tidak_hadir,
             "jumlah_cuti" => count($cutiDates),
