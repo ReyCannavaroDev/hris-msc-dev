@@ -134,9 +134,9 @@ const tempyear = tempDate.getFullYear()
 const form = reactive({
   month: tempmonth,
   year: tempyear,
-  currentTime: moment().format('HH:mm:ss'),
-  tanggal: moment().format('D MMMM YYYY'),
-  day: getDayName(moment().day()),
+  currentTime: "00:00:00",
+  tanggal: "",
+  day: "",
   address: "Loading ... ",
   distance_check: false,
   attending: null,
