@@ -31,35 +31,11 @@ class m_kary_det_kontrak extends \App\Models\BasicModels\m_kary_det_kontrak
                 "nomor" => $nomor,
         ]);
 
-        $hasOldContract = \DB::table('m_kary_det_kontrak')
-            ->where('m_karyawan_id', $arrayData['m_karyawan_id'])
-            ->exists();
-
-        if($hasOldContract)
-        {
-            $tgl_awal  = Carbon::createFromFormat('d/m/Y', $arrayData['tgl_awal'])->format('Y-m-d');
-            $tgl_akhir = Carbon::createFromFormat('d/m/Y', $arrayData['tgl_akhir'])->format('Y-m-d');
-            $ext = \DB::table('t_extend_kontrak')->insert([
-                'nomor'           => $nomor,
-                'm_karyawan_id'   => $arrayData['m_karyawan_id'],
-                'm_divisi_id'     => $arrayData['m_divisi_id'],
-                'm_dir_id'        => $arrayData['m_dir_id'],
-                'tipe_karyawan_id'=> $arrayData['tipe_karyawan_id'],
-                'tgl_awal'        => $tgl_awal,
-                'tgl_akhir'       => $tgl_akhir,
-                'duration'        => $arrayData['duration'],
-                'contract_signed' => @$arrayData['contract'] ?? '',
-                'status'          => 'COMPLETED',
-                'created_at'      => Carbon::now(),
-                'updated_at'      => Carbon::now(),
-            ]);
-        }
-
         return [
             "model"  => $model,
             "data"   => $newArrayData,
         ];
-    }    
+    }
 
     public function t_extend_kontrak() :\HasMany
     {

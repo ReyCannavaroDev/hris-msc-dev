@@ -34,6 +34,55 @@ class t_extend_kontrak extends \App\Models\BasicModels\t_extend_kontrak
         ];
     }
 
+    public function custom_cronGenerateDraft($req = null)
+    {
+        $startDate = Carbon::now()->format('Y-m-d');
+        $endDate = Carbon::now()->addDays(30)->format('Y-m-d');
+
+        // ambil id tetap dari m_general untuk exclude karyawan tetap
+        $id_tetap = \App\Models\BasicModels\m_general::where('group', 'TIPE KARYAWAN')
+            ->where('value', 'TETAP')
+            ->where('is_active', true)
+            ->where('key', 'T')
+            ->first()?->id ?? 0;
+
+        $contracts = \App\Models\BasicModels\m_kary_det_kontrak::whereBetween('tgl_akhir', [$startDate, $endDate])
+            ->where('status', true)
+            ->whereNotIn('tipe_karyawan_id', (array) $id_tetap)
+            ->whereDoesntHave('t_extend_kontrak') 
+            ->get();
+
+        $count = 0;
+        foreach ($contracts as $k) {
+            $nomor = $this->helper->generateNomor("KODE KONTRAK");
+            
+            $ext = new \App\Models\BasicModels\t_extend_kontrak();
+            $ext->nomor = $nomor;
+            $ext->m_karyawan_id = $k->m_karyawan_id;
+            $ext->m_divisi_id = $k->m_divisi_id;
+            $ext->m_dir_id = $k->m_dir_id;
+            $ext->tipe_karyawan_id = $k->tipe_karyawan_id;
+            
+            // Default tanggal awal = tgl akhir kontrak lama + 1 hari
+            // Tanggal akhir = tgl awal + durasi bulan - 1 hari
+            $durasi_bulan = $k->duration ?? 3;
+            $tgl_awal_baru = Carbon::parse($k->tgl_akhir)->addDay();
+            $tgl_akhir_baru = (clone $tgl_awal_baru)->addMonths($durasi_bulan)->subDay();
+
+            $ext->tgl_awal = $tgl_awal_baru->format('Y-m-d');
+            $ext->tgl_akhir = $tgl_akhir_baru->format('Y-m-d');
+            $ext->duration = $durasi_bulan;
+            $ext->status = 'DRAFT';
+            $ext->m_kary_det_kontrak_id = $k->id;
+            $ext->catatan = 'Dibuat otomatis oleh sistem (H-30)';
+            $ext->save();
+
+            $count++;
+        }
+
+        return $this->helper->customResponse("$count draf perpanjangan kontrak otomatis (H-30) berhasil dibuat.");
+    }
+
     public function custom_complete($req)
     {
         \DB::beginTransaction();
