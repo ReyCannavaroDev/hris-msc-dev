@@ -115,16 +115,36 @@
       <h2 class="font-bold text-lg mb-2"><i class="fa fa-pen"></i> Tanda Tangan Karyawan</h2>
       
       <div v-if="!values.is_signed && isSigning">
-        <p class="text-sm mb-2 text-gray-600">Silakan gambar tanda tangan Anda di kotak berikut sebagai bukti bahwa Anda telah membaca dan mengerti isi surat ini:</p>
-        <div class="border-2 border-dashed border-gray-400 bg-white w-[300px] h-[150px] relative" style="touch-action: none;">
-          <canvas id="signatureCanvas" width="300" height="150"></canvas>
+        <p class="text-sm mb-2 text-gray-600">Silakan gambar tanda tangan Anda di kotak berikut, <b>ATAU</b> unggah foto tanda tangan Anda:</p>
+        
+        <div class="flex gap-4 items-start">
+          <div>
+            <div class="border-2 border-dashed border-gray-400 bg-white w-[300px] h-[150px] relative" style="touch-action: none;">
+              <canvas id="signatureCanvas" width="300" height="150"></canvas>
+            </div>
+            <button @click="clearSignature" class="mt-2 text-red-500 text-sm hover:underline"><i class="fa fa-eraser"></i> Hapus / Ulangi</button>
+          </div>
+
+          <div class="border-l pl-4 border-gray-300 w-full max-w-xs">
+            <p class="font-bold text-gray-700 text-sm mb-2">Atau Upload Gambar TTD:</p>
+            <FieldUpload class="w-full mt-0" :bind="{ readonly: false }"
+              :value="values.uploaded_signature" @input="(v)=>values.uploaded_signature=v" :maxSize="5"
+              :reducerDisplay="val=>!val?null:val.split(':::')[val.split(':::').length-1]"
+              :api="{
+                url: `${store.server.url_backend}/operation/t_surat/upload`,
+                headers: { Authorization: `${store.user.token_type} ${store.user.token}`},
+                params: { field: 'signature_img' }
+               }"
+               placeholder="" label="Upload Foto TTD (JPG/PNG)"
+               fa-icon="upload" accept="image/*" :check="false" 
+            />
+          </div>
         </div>
-        <button @click="clearSignature" class="mt-2 text-red-500 text-sm hover:underline"><i class="fa fa-eraser"></i> Hapus / Ulangi</button>
       </div>
 
       <div v-else-if="values.is_signed">
         <p class="text-green-600 font-semibold mb-2">Telah ditandatangani pada: {{ values.signed_at }}</p>
-        <img :src="values.signature_img" class="border border-gray-300 w-[300px] h-[150px] object-contain bg-white" />
+        <img :src="values.signature_img && values.signature_img.includes('data:image') ? values.signature_img : (store.server.url_backend + '/' + values.signature_img)" class="border border-gray-300 w-[300px] h-[150px] object-contain bg-white" />
       </div>
     </div>
     

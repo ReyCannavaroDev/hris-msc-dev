@@ -27,7 +27,8 @@ let initialValues = {}
 
 const values = reactive({
   is_signed: false,
-  jenis_surat: 'PERINGATAN'
+  jenis_surat: 'PERINGATAN',
+  uploaded_signature: null
 })
 
 onBeforeMount(async () => {
@@ -125,20 +126,29 @@ function clearSignature() {
 }
 
 async function submitSignature() {
-  if (!canvas) return;
+  let finalSignature = null;
   
-  const blankCanvas = document.createElement('canvas');
-  blankCanvas.width = canvas.width;
-  blankCanvas.height = canvas.height;
-  if(canvas.toDataURL() === blankCanvas.toDataURL()) {
-      swal.fire({ icon: 'warning', text: 'Tanda tangan masih kosong!' })
-      return;
+  if (values.uploaded_signature) {
+    // Gunakan file yang di-upload
+    finalSignature = values.uploaded_signature;
+  } else if (canvas) {
+    const blankCanvas = document.createElement('canvas');
+    blankCanvas.width = canvas.width;
+    blankCanvas.height = canvas.height;
+    if(canvas.toDataURL() !== blankCanvas.toDataURL()) {
+        finalSignature = canvas.toDataURL('image/png');
+    }
   }
 
-  const dataURL = canvas.toDataURL('image/png')
+  if (!finalSignature) {
+      swal.fire({ icon: 'warning', text: 'Tanda tangan masih kosong! Silakan coret di kotak atau upload gambar.' })
+      return;
+  }
   
   try {
-    const apiURL = `${store.server.url_backend}/operation${endpointApi}/custom_signLetter/${route.params.id}`
+    // FIX: Hapus '/id' dari URL agar tidak memicu error 405 (Method Not Allowed) 
+    // pada router dinamis. Kirimkan ID via body JSON.
+    const apiURL = `${store.server.url_backend}/operation${endpointApi}/custom_signLetter`
     isRequesting.value = true
     const res = await fetch(apiURL, {
       method: 'POST',
@@ -146,7 +156,10 @@ async function submitSignature() {
         'Content-Type': 'Application/json',
         Authorization: `${store.user.token_type} ${store.user.token}`
       },
-      body: JSON.stringify({ signature_img: dataURL })
+      body: JSON.stringify({ 
+         id: route.params.id, 
+         signature_img: finalSignature 
+      })
     })
     if (!res.ok) throw ("Gagal menyimpan tanda tangan")
     
