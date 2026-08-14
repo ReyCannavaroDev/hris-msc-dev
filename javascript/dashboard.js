@@ -30,7 +30,8 @@ const showPegawaiAbsenModal = ref(false)
 const topLate = ref([])
 const topAbsent = ref([])
 const topPerfect = ref([])
-
+const birthdaysThisMonth = ref([])
+const holidaysThisMonth = ref([])
 const openPegawaiAbsenModal = () => {
   showPegawaiAbsenModal.value = true
 }
@@ -90,6 +91,8 @@ onMounted(async ()=>{
       topLate.value = dataDash?.late || []
       topAbsent.value = dataDash?.absent || []
       topPerfect.value = dataDash?.perfect || []
+      birthdaysThisMonth.value = dataDash?.birthdays_this_month || []
+      holidaysThisMonth.value = dataDash?.holidays_this_month || []
 
       // subSalary.value = dataDash.subcomp_salary
       // console.log('branchSalary dari API:', subSalary.value)

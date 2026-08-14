@@ -122,6 +122,44 @@
     </div>
   </div>
 
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-4 w-full p-2" v-if="is_superadmin == true">
+    <!-- Ulang Tahun Bulan Ini -->
+    <div class="p-4 !select-none bg-white bg-opacity-80 hover:!bg-opacity-95 shadow-lg rounded-lg w-full flex flex-col max-h-80">
+      <h2 class="font-semibold text-md justify-start mb-4 sticky top-0 bg-white z-10"><i class="fa fa-birthday-cake mr-2 text-pink-500"></i>Ulang Tahun Bulan Ini</h2>
+      <div class="overflow-y-auto flex-1">
+        <div v-if="birthdaysThisMonth.length" class="divide-y divide-gray-200">
+          <div v-for="(kary, idx) in birthdaysThisMonth" :key="idx" class="py-2 flex justify-between items-center">
+            <div>
+              <p class="font-medium text-gray-800">@{{ kary.nama_lengkap }}</p>
+            </div>
+            <div class="text-sm font-bold text-gray-500">
+              @{{ new Date(kary.tgl_lahir).toLocaleDateString('id-ID', { day: 'numeric', month: 'long' }) }}
+            </div>
+          </div>
+        </div>
+        <p v-else class="text-center text-gray-500 py-4">Tidak ada yang berulang tahun bulan ini.</p>
+      </div>
+    </div>
+
+    <!-- Event / Libur Nasional Bulan Ini -->
+    <div class="p-4 !select-none bg-white bg-opacity-80 hover:!bg-opacity-95 shadow-lg rounded-lg w-full flex flex-col max-h-80">
+      <h2 class="font-semibold text-md justify-start mb-4 sticky top-0 bg-white z-10"><i class="fa fa-calendar-day mr-2 text-red-500"></i>Event / Libur Nasional Bulan Ini</h2>
+      <div class="overflow-y-auto flex-1">
+        <div v-if="holidaysThisMonth.length" class="divide-y divide-gray-200">
+          <div v-for="(libur, idx) in holidaysThisMonth" :key="idx" class="py-2 flex flex-col">
+            <div class="flex justify-between items-start">
+              <p class="font-medium text-gray-800">@{{ libur.desc || libur.kode }}</p>
+              <span class="text-sm font-bold text-red-500 bg-red-100 px-2 py-0.5 rounded ml-2 whitespace-nowrap">
+                @{{ new Date(libur.tanggal).toLocaleDateString('id-ID', { day: 'numeric', month: 'long' }) }}
+              </span>
+            </div>
+          </div>
+        </div>
+        <p v-else class="text-center text-gray-500 py-4">Tidak ada event atau libur nasional bulan ini.</p>
+      </div>
+    </div>
+  </div>
+
   <div v-show="showPegawaiAbsenModal" class="fixed inset-0 flex items-center justify-center z-50">
     <div @click="closePegawaiAbsenModal" class="modal-overlay fixed inset-0 bg-black opacity-50"></div>
     <div class="modal-container bg-white w-[90%] md:w-[520px] mx-auto rounded shadow-lg z-50 overflow-hidden">

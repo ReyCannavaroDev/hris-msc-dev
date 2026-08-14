@@ -159,6 +159,20 @@ class m_dir extends \App\Models\BasicModels\m_dir
         $stat = $this->custom_getDashboardStats();
         // dd($stat['top_late']);
 
+        $currentMonth = Carbon::now()->month;
+        $birthdays_this_month = m_kary::where('is_active', true)
+            ->whereMonth('tgl_lahir', $currentMonth)
+            ->select('nama_lengkap', 'tgl_lahir')
+            ->orderByRaw('EXTRACT(DAY FROM tgl_lahir) ASC')
+            ->get();
+
+        $holidays_this_month = \DB::table('m_libur_nasional')
+            ->where('is_active', true)
+            ->whereMonth('tanggal', $currentMonth)
+            ->select('kode', 'desc', 'tanggal')
+            ->orderBy('tanggal', 'ASC')
+            ->get();
+
         $data = [
             "dir_count" => $dir_count,
             "div_count" => $div_count,
@@ -168,7 +182,9 @@ class m_dir extends \App\Models\BasicModels\m_dir
             "dir_salary" => $salary_per_dir,
             "late"      => $stat['top_late'],
             "absent"    => $stat['top_absent'],
-            "perfect"   => $stat['top_perfect']
+            "perfect"   => $stat['top_perfect'],
+            "birthdays_this_month" => $birthdays_this_month,
+            "holidays_this_month" => $holidays_this_month
         ];
 
         return $data;
