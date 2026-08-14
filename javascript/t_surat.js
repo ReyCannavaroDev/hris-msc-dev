@@ -146,9 +146,8 @@ async function submitSignature() {
   }
   
   try {
-    // FIX: Hapus '/id' dari URL agar tidak memicu error 405 (Method Not Allowed) 
-    // pada router dinamis. Kirimkan ID via body JSON.
-    const apiURL = `${store.server.url_backend}/operation${endpointApi}/custom_signLetter`
+    // FIX: URL endpoint yang benar adalah /signLetter (karena backend menggunakan prefix custom_ secara otomatis)
+    const apiURL = `${store.server.url_backend}/operation${endpointApi}/signLetter`
     isRequesting.value = true
     const res = await fetch(apiURL, {
       method: 'POST',
