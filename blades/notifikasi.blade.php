@@ -35,6 +35,43 @@
       </div>
       <div class="flex items-center justify-between">
         <div class="w-[100%] h-[440px] overflow-y-scroll">
+          <div v-if="is_superadmin && dataKontrak.length > 0" class="rounded-none border border-l-0 border-r-0 border-t-0 border-neutral-200 !bg-yellow-300 dark:border-neutral-600 dark:bg-neutral-800 mb-4">
+            <h2 class="mb-0" id="flush-headingKontrak">
+              <button
+                @click="isKontrakOpen = !isKontrakOpen"
+                class="group relative flex w-full items-center rounded-none border-0 !bg-gradient-to-r from-red-500 to-red-400 px-5 py-2 text-left text-base font-medium text-white transition [overflow-anchor:none] hover:z-[2] focus:z-[3] focus:outline-none"
+                type="button">
+                Pemberitahuan Kontrak Karyawan Berakhir (H-30)
+                <span class="-mr-1 ml-auto h-5 w-5 shrink-0 fill-white transition-transform duration-200 ease-in-out">
+                  <Icon :fa="isKontrakOpen ? 'arrow-down-wide-short' : 'times'" />
+                </span>
+              </button>
+            </h2>
+            <div class="!visible border-0" :class="isKontrakOpen ? '' : 'hidden'">
+              <div class="relative overflow-x-auto shadow-md sm:rounded-lg">
+                <table class="w-full text-sm text-left text-gray-500 dark:text-gray-400">
+                  <thead class="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-400">
+                    <tr>
+                      <th scope="col" class="px-6 py-3">Nama Karyawan</th>
+                      <th scope="col" class="px-6 py-3">Unit</th>
+                      <th scope="col" class="px-6 py-3">Jabatan</th>
+                      <th scope="col" class="px-6 py-3">Tgl Mulai</th>
+                      <th scope="col" class="px-6 py-3">Tgl Akhir Kontrak</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="(k, idx) in dataKontrak" :key="idx" class="bg-white border-b dark:bg-gray-800 dark:border-gray-700 hover:bg-gray-50">
+                      <td class="px-6 py-2 font-medium text-gray-900 whitespace-nowrap dark:text-white">{{ k.nama_lengkap }}</td>
+                      <td class="px-6 py-2">{{ k.unit ?? '-' }}</td>
+                      <td class="px-6 py-2">{{ k.jabatan ?? '-' }}</td>
+                      <td class="px-6 py-2">{{ k.tgl_awal }}</td>
+                      <td class="px-6 py-2 text-red-500 font-bold">{{ k.tgl_akhir }}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
           <div >
             <tbody v-if="!dataLanding.items.length">
               <tr 

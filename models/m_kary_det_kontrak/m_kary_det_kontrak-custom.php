@@ -233,5 +233,35 @@ class m_kary_det_kontrak extends \App\Models\BasicModels\m_kary_det_kontrak
             "count_end" => $count,
         ]);
     }
+    public function custom_notifEndKontrak()
+    {
+        $startDate = Carbon::now();
+        $endDate   = Carbon::now()->addDays(30);
+
+        $id_tetap = m_general::where('group', 'TIPE KARYAWAN')
+            ->where('key', 'T')
+            ->first()?->id ?? 0;
+
+        $data = m_kary_det_kontrak::join('m_kary', 'm_kary_det_kontrak.m_karyawan_id', 'm_kary.id')
+            ->leftJoin('m_divisi', 'm_kary_det_kontrak.m_divisi_id', 'm_divisi.id')
+            ->leftJoin('m_dir', 'm_kary_det_kontrak.m_dir_id', 'm_dir.id')
+            ->select(
+                'm_kary.nama_lengkap',
+                'm_divisi.nama as jabatan',
+                'm_dir.nama as unit',
+                'm_kary_det_kontrak.tgl_awal',
+                'm_kary_det_kontrak.tgl_akhir'
+            )
+            ->whereBetween('m_kary_det_kontrak.tgl_akhir', [$startDate, $endDate])
+            ->where('m_kary_det_kontrak.status', true)
+            ->whereDoesntHave('t_extend_kontrak')
+            ->whereNotIn('m_kary_det_kontrak.tipe_karyawan_id', (array) $id_tetap)
+            ->orderBy('m_kary_det_kontrak.tgl_akhir', 'ASC')
+            ->get();
+
+        return response()->json([
+            "data" => $data,
+        ]);
+    }
 
 }

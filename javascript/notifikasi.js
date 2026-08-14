@@ -24,12 +24,38 @@ let initialValues = {}
 const changedValues = []
 
 let dataLanding = reactive({items:[]})
+const dataKontrak = ref([])
+const isKontrakOpen = ref(true)
+const is_superadmin = ref(false)
 const values = reactive({})
 let params = { join: false, transform: false, single:true }
 
-onBeforeMount(async () => {
-   
+onMounted(async () => {
+    try {
+        const resMe = await fetch(`${store.server.url_backend}/me`, {
+            headers: {
+                'Content-Type': 'Application/json',
+                Authorization: `${store.user.token_type} ${store.user.token}`
+            }
+        });
+        const dataMe = await resMe.json();
+        is_superadmin.value = dataMe?.is_superadmin ?? false;
+
+        if (is_superadmin.value) {
+            const resKontrak = await fetch(`${store.server.url_backend}/operation/m_kary_det_kontrak/notifEndKontrak`, {
+                headers: {
+                    'Content-Type': 'Application/json',
+                    Authorization: `${store.user.token_type} ${store.user.token}`
+                }
+            });
+            const dataK = await resKontrak.json();
+            dataKontrak.value = dataK?.data || [];
+        }
+    } catch (e) {
+        console.error("Error fetching notif kontrak", e);
+    }
     
+    loadTable();
 })
 
 async function loadTable() {
