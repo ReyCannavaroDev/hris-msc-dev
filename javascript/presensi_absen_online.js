@@ -133,7 +133,17 @@ const tempmonth = tempDate.getMonth() + 1
 const tempyear = tempDate.getFullYear()
 const form = reactive({
   month: tempmonth,
-  year: tempyear 
+  year: tempyear,
+  currentTime: moment().format('HH:mm:ss'),
+  tanggal: moment().format('D MMMM YYYY'),
+  day: getDayName(moment().day()),
+  address: "Loading ... ",
+  distance_check: false,
+  attending: null,
+  istirahat_tipe: null,
+  istirahat_start: null,
+  istirahat_end: null,
+  istirahat_durasi: null
 })
 for(let i = form.year; i >= 2010; i-- ){
     listTahun.push(i)
@@ -351,6 +361,11 @@ async function checkLastStatus(){
     const resultJson = await res?.json()
     const data = resultJson.data
     form.attending = data.status
+    form.istirahat_tipe = data.istirahat_tipe
+    form.istirahat_start = data.istirahat_start
+    form.istirahat_end = data.istirahat_end
+    form.istirahat_durasi = data.istirahat_durasi
+
     if(form.attending?.toLowerCase() === 'attend'){
       // const stream = videoElement.value.srcObject
       // stream?.getTracks()?.forEach((track)=>{
@@ -412,6 +427,47 @@ async function postAttend(){
       icon: 'error',
       text: err
     })
+  }
+}
+
+async function postIstirahat(tipe) {
+  try {
+    const res = await fetch(`${store.server.url_backend}/operation/presensi_absensi/istirahat`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'Application/json',
+        Authorization: `${store.user.token_type} ${store.user.token}`
+      },
+      body: JSON.stringify({ tipe })
+    })
+    
+    const resultJson = await res.json()
+    if (!res.ok) throw (resultJson.message || "Gagal melaporkan istirahat")
+    
+    swal.fire({ icon: 'success', text: resultJson.message })
+    await checkLastStatus()
+  } catch(err) {
+    swal.fire({ icon: 'error', text: err })
+  }
+}
+
+async function postIstirahatEnd() {
+  try {
+    const res = await fetch(`${store.server.url_backend}/operation/presensi_absensi/istirahat_end`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'Application/json',
+        Authorization: `${store.user.token_type} ${store.user.token}`
+      }
+    })
+    
+    const resultJson = await res.json()
+    if (!res.ok) throw (resultJson.message || "Gagal menyelesaikan istirahat")
+    
+    swal.fire({ icon: 'success', text: resultJson.message })
+    await checkLastStatus()
+  } catch(err) {
+    swal.fire({ icon: 'error', text: err })
   }
 }
 

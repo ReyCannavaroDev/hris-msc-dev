@@ -521,6 +521,17 @@ class presensi_absensi extends \App\Models\BasicModels\presensi_absensi
                 abort(403, 'Anda berada di luar jangkauan (OUT SCOPE NOT ALLOWED)');
             }
 
+            $presensiData = $this->where("tanggal", date("Y-m-d"))
+                 ->where("default_user_id", auth()->user()->id)
+                 ->first();
+                 
+            if ($presensiData && !$presensiData->istirahat_tipe) {
+                return $this->helper->customResponse("Harap laporkan absensi istirahat Anda terlebih dahulu!", 422);
+            }
+            if ($presensiData && $presensiData->istirahat_tipe === 'KELUAR' && !$presensiData->istirahat_end) {
+                return $this->helper->customResponse("Istirahat Anda belum diselesaikan! Harap klik Selesai Istirahat terlebih dahulu.", 422);
+            }
+
             $check_exists_absen = $this->where("tanggal", date("Y-m-d"))
                 ->where("default_user_id", auth()->user()->id)
                 ->where("status", "ATTEND")
@@ -635,10 +646,70 @@ class presensi_absensi extends \App\Models\BasicModels\presensi_absensi
 
     public function custom_status($model)
     {
+        $presensi = $this->where('tanggal', date('Y-m-d'))->where('default_user_id', auth()->user()->id ?? 0)->first();
         $data = [
-            'status' => $this->where('tanggal', date('Y-m-d'))->where('default_user_id', auth()->user()->id ?? 0)->pluck('status')->first() ?? 'NOT ATTEND'
+            'status' => $presensi->status ?? 'NOT ATTEND',
+            'istirahat_tipe' => $presensi->istirahat_tipe ?? null,
+            'istirahat_start' => $presensi->istirahat_start ?? null,
+            'istirahat_end' => $presensi->istirahat_end ?? null,
+            'istirahat_durasi' => $presensi->istirahat_durasi ?? null
         ];
         return $this->helper->customResponse("OK", 200, $data);
+    }
+
+    public function custom_istirahat($req)
+    {
+        $tipe = $req->tipe; // 'KELUAR' or 'DI_KANTOR'
+        if (!in_array($tipe, ['KELUAR', 'DI_KANTOR'])) {
+            return $this->helper->customResponse("Tipe istirahat tidak valid", 422);
+        }
+
+        $presensi = $this->where("tanggal", date("Y-m-d"))->where("default_user_id", auth()->user()->id)->where("status", "WORKING")->first();
+        if (!$presensi) {
+            return $this->helper->customResponse("Anda belum check-in hari ini", 422);
+        }
+
+        if ($presensi->istirahat_tipe) {
+            return $this->helper->customResponse("Anda sudah melaporkan istirahat hari ini", 422);
+        }
+
+        $presensi->istirahat_tipe = $tipe;
+        if ($tipe === 'KELUAR') {
+            $presensi->istirahat_start = Carbon::now()->format('H:i:s');
+        } else {
+            $presensi->istirahat_start = null;
+            $presensi->istirahat_end = null;
+            $presensi->istirahat_durasi = null;
+        }
+        $presensi->save();
+
+        return $this->helper->customResponse("Berhasil melaporkan istirahat", 200);
+    }
+
+    public function custom_istirahat_end($req)
+    {
+        $presensi = $this->where("tanggal", date("Y-m-d"))->where("default_user_id", auth()->user()->id)->where("status", "WORKING")->first();
+        if (!$presensi) {
+            return $this->helper->customResponse("Anda belum check-in hari ini", 422);
+        }
+
+        if ($presensi->istirahat_tipe !== 'KELUAR') {
+            return $this->helper->customResponse("Tipe istirahat bukan Keluar, tidak perlu diselesaikan", 422);
+        }
+
+        if ($presensi->istirahat_end) {
+            return $this->helper->customResponse("Anda sudah menyelesaikan istirahat", 422);
+        }
+
+        $start = Carbon::parse($presensi->istirahat_start);
+        $end = Carbon::now();
+        $durasi = $start->diffInMinutes($end);
+
+        $presensi->istirahat_end = $end->format('H:i:s');
+        $presensi->istirahat_durasi = $durasi;
+        $presensi->save();
+
+        return $this->helper->customResponse("Istirahat diselesaikan (Durasi: {$durasi} menit)", 200);
     }
 
     public function custom_status_get_jadwal_kerja(){

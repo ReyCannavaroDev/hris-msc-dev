@@ -10,16 +10,12 @@ class presensiabsensi extends Migration
     public function up()
     {
         Schema::table($this->tableName, function (Blueprint $table) {
-            //$table->string('_existColumnName_')->change();
-            //$table->string('_columnName_');
-            // $table->dropColumn(['catatan']);
-            // $table->bigInteger('t_jadwal_kerja_id')->comment('{"src":"t_jadwal_kerja.id"}')->nullable();
-            // $table->bigInteger('t_jadwal_kerja_det_id')->comment('{"src":"t_jadwal_kerja_det.id"}')->nullable();
-            // $table->bigInteger('t_jadwal_kerja_det_hari_id')->comment('{"src":"t_jadwal_kerja_det_hari.id"}')->nullable();
-            // $table->string('checkin_foto')->nullable()->change();
-            // $table->string('checkout_foto')->nullable()->change();
-            // $table->text('catatan')->nullable();
-            // $table->text('catatan_out')->nullable();
+            if (!Schema::hasColumn($this->tableName, 'istirahat_tipe')) {
+                $table->string('istirahat_tipe', 50)->nullable(); // KELUAR, DI_KANTOR
+                $table->time('istirahat_start')->nullable();
+                $table->time('istirahat_end')->nullable();
+                $table->integer('istirahat_durasi')->nullable(); // Dalam menit
+            }
         });
     }
 }

@@ -38,6 +38,27 @@
           <button @click="activeTabIndex = 1" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg">Lihat Detail Absen</button>
         </div>
       </div>
+      
+      <!-- Fitur Istirahat -->
+      <div v-show="form.attending?.toLowerCase() === 'working'" class="w-full max-w-md mx-auto mt-6 p-4 border border-yellow-400 bg-yellow-50 rounded-lg">
+        <h2 class="font-bold text-gray-700 mb-2 text-center"><i class="fa fa-coffee"></i> Lapor Jam Istirahat</h2>
+        
+        <div v-if="!form.istirahat_tipe" class="flex justify-center space-x-3">
+          <button @click="postIstirahat('KELUAR')" class="bg-yellow-600 hover:bg-yellow-700 text-white px-4 py-2 rounded-lg text-sm"><i class="fa fa-sign-out-alt"></i> Keluar Istirahat</button>
+          <button @click="postIstirahat('DI_KANTOR')" class="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded-lg text-sm"><i class="fa fa-building"></i> Tetap di Kantor</button>
+        </div>
+        
+        <div v-else-if="form.istirahat_tipe === 'KELUAR' && !form.istirahat_end" class="text-center">
+          <p class="text-sm text-gray-600 mb-3">Anda sedang istirahat keluar sejak <b class="text-yellow-700">{{ form.istirahat_start }}</b></p>
+          <button @click="postIstirahatEnd()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm"><i class="fa fa-check"></i> Selesai Istirahat</button>
+        </div>
+        
+        <div v-else class="text-center text-green-700 font-semibold text-sm">
+          <i class="fa fa-check-circle"></i> Istirahat telah dilaporkan 
+          <span v-if="form.istirahat_durasi">(Durasi: {{ form.istirahat_durasi }} menit)</span>
+        </div>
+        <p class="text-xs text-gray-500 mt-2 text-center">* Wajib diisi sebelum melakukan absen pulang (Checkout).</p>
+      </div>
       <div class="flex justify-between mt-6">
         <div class="flex space-x-2 items-center">
           <icon fa="calendar" class="text-blue-600"/>
