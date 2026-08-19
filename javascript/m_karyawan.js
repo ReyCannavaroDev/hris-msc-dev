@@ -218,7 +218,7 @@ onBeforeMount(async () => {
       initialValues = resultJson.data
       // values.m_standart_gaji_id = 21
 
-      // console.log('initialValues', initialValues)
+      console.log('initialValues', initialValues.updated_num)
 
       // values.m_standart_gaji_id = initialValues.[]
 
