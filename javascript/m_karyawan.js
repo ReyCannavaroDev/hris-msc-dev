@@ -218,7 +218,8 @@ onBeforeMount(async () => {
       initialValues = resultJson.data
       // values.m_standart_gaji_id = 21
 
-      console.log('initialValues', initialValues.updated_num)
+      console.log('Updated Num', initialValues.updated_num)
+      console.log('Updated Year', initialValues.updated_year)
 
       // values.m_standart_gaji_id = initialValues.[]
 
@@ -1026,7 +1027,7 @@ const removeDetail = (index) => {
 }
 
 async function onSave() {
-  //values.tags = JSON.stringify(values.tags)
+  // values.tags = JSON.stringify(values.tags)
   try {
     values.nama_depan = values.nama_lengkap
     values.nama_belakang = values.nama_lengkap
@@ -1107,6 +1108,18 @@ async function onSave() {
       // if(initialValues.m_kary_det_kartu[0].bpjs_foto !== tempBPJS){
       //   values.m_kary_det_kartu[0].bpjs_foto = tempBPJS
       // }
+      const tahunUpdate = new Date(values.updated_at).getFullYear();
+
+      if(isProfile){
+        if(tahunUpdate>initialValues.updated_year){
+          values.updated_num = 1;
+        }else{
+          values.updated_num = initialValues.updated_num+1;
+        }
+      values.updated_year = new Date().getFullYear();
+      }
+      
+
 
     }
     const dataURL = `${store.server.url_backend}/operation${endpointApi}${isCreating ? '' : ('/' + route.params.id)}`
