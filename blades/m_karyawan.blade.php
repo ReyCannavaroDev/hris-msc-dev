@@ -2361,7 +2361,9 @@
       <button @click="onBack" v-if="!isProfile" class="bg-[#EF4444] hover:bg-[#ed3232] text-white px-[36.5px] py-[12px] rounded-[6px] ">
             Batal
           </button>
-      <button v-show="actionText || isProfile" @click="onSave" class="bg-[#10B981] hover:bg-[#0ea774] text-white px-[36.5px] py-[12px] rounded-[6px] ">
+      <button 
+        v-show="(!isProfile && actionText) || (isProfile && ((values.updated_num ?? 0) < 2 || new Date(values.updated_at).getFullYear() !== new Date().getFullYear()))" 
+        @click="onSave" class="bg-[#10B981] hover:bg-[#0ea774] text-white px-[36.5px] py-[12px] rounded-[6px] ">
             Simpan
           </button>
     </div>
