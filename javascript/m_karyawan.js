@@ -29,6 +29,7 @@ const formErrorsPK = ref({})
 const activeTabIndex = ref(0)
 const tsId = `ts=` + (Date.parse(new Date()))
 
+console.log("isProfile = ", isProfile)
 // ------------------------------ PERSIAPAN
 const endpointApi = '/m_kary'
 onBeforeMount(() => {
@@ -217,10 +218,6 @@ onBeforeMount(async () => {
       const resultJson = await res.json()
       initialValues = resultJson.data
       // values.m_standart_gaji_id = 21
-
-      console.log('Updated Num', initialValues.updated_num)
-      console.log('Updated Year', initialValues.updated_year)
-
       // values.m_standart_gaji_id = initialValues.[]
 
 
@@ -1118,8 +1115,6 @@ async function onSave() {
         }
       values.updated_year = new Date().getFullYear();
       }
-      
-
 
     }
     const dataURL = `${store.server.url_backend}/operation${endpointApi}${isCreating ? '' : ('/' + route.params.id)}`
@@ -1142,7 +1137,20 @@ async function onSave() {
         throw ("Failed when trying to post data")
       }
     }
-    router.replace('/' + modulPath + '?reload=' + (Date.parse(new Date())))
+    
+    await swal.fire({
+      icon: 'success',
+      title: 'Berhasil!',
+      text: 'Data diri Anda berhasil disimpan.',
+      timer: 1000,
+      showConfirmButton: false
+    })
+
+    if (isProfile) {
+      router.replace('/account?menu_click=true')
+    } else {
+      router.replace('/' + modulPath + '?reload=' + (Date.parse(new Date())))
+    }
   } catch (err) {
     isBadForm.value = true
     swal.fire({

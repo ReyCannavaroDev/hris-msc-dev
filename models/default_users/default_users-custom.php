@@ -74,6 +74,8 @@ class default_users extends \App\Models\BasicModels\default_users
             $object['nik'] = @$kary->nik;
             $object['divisi'] = @m_divisi::find($kary->m_divisi_id)->nama;
             $object['dept'] = @m_dept::find($kary->m_dept_id)->nama;
+            $object['updated_num'] = @$kary->updated_num;
+            $object['updated_year'] = @$kary->updated_year;
         }
         $object['atasan'] = m_kary::where('id',@$row['m_kary.atasan_id']??0)->pluck('nama_lengkap')->first();
 
