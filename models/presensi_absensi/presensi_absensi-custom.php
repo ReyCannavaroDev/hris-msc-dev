@@ -1998,26 +1998,26 @@ class presensi_absensi extends \App\Models\BasicModels\presensi_absensi
                   $waktuJadwalPulang = Carbon::parse($jadwal->waktu_akhir);
                   $waktuAktualPulang = Carbon::parse(Carbon::parse($dt->checkout_aktual)->format('H:i:s'));
 
-                  if ($waktuAktualPulang->gt($waktuJadwalPulang)) {
                       $menit_lembur = $waktuJadwalPulang->diffInMinutes($waktuAktualPulang);
-                      $jam_lembur = round($menit_lembur / 60, 2);
+                      $jam_lembur = floor($menit_lembur / 60);
                       $nominal_lembur = $jam_lembur * 10000;
 
-                      $rows[] = [
-                          'nik' => $dt->nik,
-                          'nama' => $dt->nama,
-                          'unit' => $dt->unit ?? '-',
-                          'jabatan' => $dt->jabatan ?? '-',
-                          'tanggal' => Carbon::parse($dt->tanggal)->format('d-m-Y'),
-                          'hari' => $dayName,
-                          'tipe_hari' => $jadwal->tipe_hari ?? 'KERJA',
-                          'jam_selesai_jadwal' => $jadwal->waktu_akhir,
-                          'checkout_aktual' => $dt->checkout_aktual,
-                          'menit_lembur' => $menit_lembur,
-                          'jam_lembur' => $jam_lembur,
-                          'nominal_lembur' => $nominal_lembur
-                      ];
-                  }
+                      if ($jam_lembur >= 1) {
+                          $rows[] = [
+                              'nik' => $dt->nik,
+                              'nama' => $dt->nama,
+                              'unit' => $dt->unit ?? '-',
+                              'jabatan' => $dt->jabatan ?? '-',
+                              'tanggal' => Carbon::parse($dt->tanggal)->format('d-m-Y'),
+                              'hari' => $dayName,
+                              'tipe_hari' => $jadwal->tipe_hari ?? 'KERJA',
+                              'jam_selesai_jadwal' => $jadwal->waktu_akhir,
+                              'checkout_aktual' => $dt->checkout_aktual,
+                              'menit_lembur' => $menit_lembur,
+                              'jam_lembur' => $jam_lembur,
+                              'nominal_lembur' => $nominal_lembur
+                          ];
+                      }
               }
           }
 
@@ -2086,23 +2086,25 @@ class presensi_absensi extends \App\Models\BasicModels\presensi_absensi
 
                   if ($waktuAktualPulang->gt($waktuJadwalPulang)) {
                       $menit_lembur = $waktuJadwalPulang->diffInMinutes($waktuAktualPulang);
-                      $jam_lembur = round($menit_lembur / 60, 2);
+                      $jam_lembur = floor($menit_lembur / 60);
                       $nominal_lembur = $jam_lembur * 10000;
 
-                      $rows[] = [
-                          'NIK' => $dt->nik,
-                          'NAMA' => $dt->nama,
-                          'UNIT' => $dt->unit ?? '-',
-                          'JABATAN' => $dt->jabatan ?? '-',
-                          'TANGGAL' => Carbon::parse($dt->tanggal)->format('d-m-Y'),
-                          'HARI' => $dayName,
-                          'TIPE HARI' => $jadwal->tipe_hari ?? 'KERJA',
-                          'JADWAL PULANG' => $jadwal->waktu_akhir,
-                          'CHECKOUT AKTUAL' => $dt->checkout_aktual,
-                          'MENIT LEMBUR' => $menit_lembur,
-                          'JAM LEMBUR' => $jam_lembur,
-                          'NOMINAL LEMBUR' => $nominal_lembur
-                      ];
+                      if ($jam_lembur >= 1) {
+                          $rows[] = [
+                              'NIK' => $dt->nik,
+                              'NAMA' => $dt->nama,
+                              'UNIT' => $dt->unit ?? '-',
+                              'JABATAN' => $dt->jabatan ?? '-',
+                              'TANGGAL' => Carbon::parse($dt->tanggal)->format('d-m-Y'),
+                              'HARI' => $dayName,
+                              'TIPE HARI' => $jadwal->tipe_hari ?? 'KERJA',
+                              'JADWAL PULANG' => $jadwal->waktu_akhir,
+                              'CHECKOUT AKTUAL' => $dt->checkout_aktual,
+                              'MENIT LEMBUR' => $menit_lembur,
+                              'JAM LEMBUR' => $jam_lembur,
+                              'NOMINAL LEMBUR' => $nominal_lembur
+                          ];
+                      }
                   }
               }
           }

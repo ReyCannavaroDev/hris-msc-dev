@@ -128,11 +128,11 @@ class t_perhitungan_gaji extends \App\Models\BasicModels\t_perhitungan_gaji
 
             $not_complete = $rekap['tidak_absen_pulang'];
 
-            $total_lembur_hari_biasa = ceil(
+            $total_lembur_hari_biasa = floor(
                 $rekap["total_menit_lembur_kerja"] / 60
             );
 
-            $total_lembur_hari_libur = ceil(
+            $total_lembur_hari_libur = floor(
                 $rekap["total_menit_lembur_libur"] / 60
             );
 
@@ -919,10 +919,13 @@ class t_perhitungan_gaji extends \App\Models\BasicModels\t_perhitungan_gaji
 
                     if ($checkoutTime->greaterThan($jadwalAkhirTime)) {
                         $menit = $jadwalAkhirTime->diffInMinutes($checkoutTime);
-                        if ($tipe === "KERJA") {
-                            $total_menit_lembur_kerja += $menit;
-                        } else {
-                            $total_menit_lembur_libur += $menit;
+                        $jam_lembur_hari = floor($menit / 60);
+                        if ($jam_lembur_hari >= 1) {
+                            if ($tipe === "KERJA") {
+                                $total_menit_lembur_kerja += $jam_lembur_hari * 60;
+                            } else {
+                                $total_menit_lembur_libur += $jam_lembur_hari * 60;
+                            }
                         }
                     }
                 }
