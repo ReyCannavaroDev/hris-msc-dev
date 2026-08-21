@@ -17,6 +17,7 @@ const formErrors = ref({})
 const tsId = `ts=`+(Date.parse(new Date()))
 
 const dirSalary = ref([])
+const salaryPeriodText = ref('')
 const chartData = ref({})
 const chartDataLate = ref({})
 const chartDataAbsent = ref({})
@@ -88,6 +89,7 @@ onMounted(async ()=>{
 
 
       dirSalary.value = dataDash?.dir_salary || []
+      salaryPeriodText.value = dataDash?.salary_period_text || ''
       topLate.value = dataDash?.late || []
       topAbsent.value = dataDash?.absent || []
       topPerfect.value = dataDash?.perfect || []

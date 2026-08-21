@@ -85,10 +85,12 @@ class m_dir extends \App\Models\BasicModels\m_dir
             $q->where('is_active', true);
         })->count();
         $now = Carbon::now()->format('Y-m-d');
-        $periode_in_date = Carbon::now()
-            ->subMonth()
-            ->day(20)
-            ->format('Y-m-d');        
+        $latestPeriod = t_final_gaji_det::whereNotNull('periode_in_date')
+            ->orderBy('periode_in_date', 'desc')
+            ->value('periode_in_date');
+
+        $periode_in_date = $latestPeriod ?: Carbon::now()->subMonth()->format('Y-m-d');
+        $periode_text = $latestPeriod ? Carbon::parse($latestPeriod)->translatedFormat('F Y') : Carbon::now()->subMonth()->translatedFormat('F Y');
 
         $total_hadir = default_users::whereHas('m_kary', function($q){
                 $q->where('is_active', true);
@@ -123,8 +125,11 @@ class m_dir extends \App\Models\BasicModels\m_dir
         $salary_per_dir = []; // array penampung
 
         foreach ($m_dir as $dir) {
-            $gaji = t_final_gaji_det::whereHas('m_kary', function($q) use ($dir){
-                    $q->where('m_dir_id', $dir->id);
+            $gaji = t_final_gaji_det::where(function($q) use ($dir){
+                    $q->where('m_kary_dir_id', $dir->id)
+                      ->orWhereHas('m_kary', function($q2) use ($dir) {
+                          $q2->where('m_dir_id', $dir->id);
+                      });
                 })
                 ->where('periode_in_date',  $periode_in_date)
                 ->sum('total_gaji') ?? 0;
@@ -180,6 +185,7 @@ class m_dir extends \App\Models\BasicModels\m_dir
             "total_absen" => $tidak_hadir,
             "absent_today" => $pegawai_tidak_hadir,
             "dir_salary" => $salary_per_dir,
+            "salary_period_text" => $periode_text,
             "late"      => $stat['top_late'],
             "absent"    => $stat['top_absent'],
             "perfect"   => $stat['top_perfect'],

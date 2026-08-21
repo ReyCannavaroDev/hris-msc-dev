@@ -27,7 +27,9 @@
   <div class="grid <md:grid-cols-1 grid-cols-2 gap-6 p-2" v-if="is_superadmin == true">
     <div
       class="col-span-2 p-4 !select-none bg-white bg-opacity-80 hover:!bg-opacity-95 shadow-lg rounded-lg w-full w-full">
-      <h2 class="font-semibold text-md justify-start mb-4">Pengeluaran Gaji Karyawan Bulan Ini Per Unit</h2>
+      <h2 class="font-semibold text-md justify-start mb-4">
+        Pengeluaran Gaji Karyawan Per Unit <span v-if="salaryPeriodText" class="text-sm font-normal text-gray-500">(@{{ salaryPeriodText }})</span>
+      </h2>
       <column-chart :stacked="true" :library="{
           accessibility: {
             enabled: false
