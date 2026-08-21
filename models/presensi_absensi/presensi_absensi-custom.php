@@ -646,15 +646,197 @@ class presensi_absensi extends \App\Models\BasicModels\presensi_absensi
 
     public function custom_status($model)
     {
-        $presensi = $this->where('tanggal', date('Y-m-d'))->where('default_user_id', auth()->user()->id ?? 0)->first();
+        $userId = auth()->user()->id ?? 0;
+        $presensi = $this->where('tanggal', date('Y-m-d'))->where('default_user_id', $userId)->first();
+        $jadwal = $this->resolveJadwalHariIni($presensi);
+
         $data = [
             'status' => $presensi->status ?? 'NOT ATTEND',
             'istirahat_tipe' => $presensi->istirahat_tipe ?? null,
             'istirahat_start' => $presensi->istirahat_start ?? null,
             'istirahat_end' => $presensi->istirahat_end ?? null,
-            'istirahat_durasi' => $presensi->istirahat_durasi ?? null
+            'istirahat_durasi' => $presensi->istirahat_durasi ?? null,
+            'jadwal' => $jadwal,
         ];
         return $this->helper->customResponse("OK", 200, $data);
+    }
+
+    public function custom_jadwal_hari_ini($req = null)
+    {
+        $userId = auth()->user()->id ?? 0;
+        $presensi = $this->where('tanggal', date('Y-m-d'))->where('default_user_id', $userId)->first();
+        $jadwal = $this->resolveJadwalHariIni($presensi);
+
+        return $this->helper->customResponse("OK", 200, $jadwal);
+    }
+
+    private function resolveJadwalHariIni($presensi = null)
+    {
+        $user = auth()->user();
+        $userId = $user->id ?? 0;
+        $karyId = $user->m_kary_id ?? null;
+        $kary = $karyId ? m_kary::find($karyId) : null;
+
+        $today = Carbon::today();
+        $todayDate = $today->format('Y-m-d');
+        $dayNameIndo = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'][$today->dayOfWeek];
+        $dayNum = $today->dayOfWeek == 0 ? 7 : $today->dayOfWeek;
+
+        // 1. Cek Libur Nasional
+        $holiday = DB::table('m_libur_nasional')
+            ->where('is_active', true)
+            ->where('tanggal', $todayDate)
+            ->first();
+
+        // 2. Cek Cuti
+        $cuti = null;
+        if ($karyId) {
+            $cuti = t_cuti::where('m_kary_id', $karyId)
+                ->where('status', 'APPROVED')
+                ->where('date_from', '<=', $todayDate)
+                ->where('date_to', '>=', $todayDate)
+                ->first();
+        }
+
+        // 3. Cek Shift / Detail Jadwal Kerja
+        $jadwalDetHari = null;
+        if ($karyId) {
+            $detKary = t_jadwal_kerja_det::where('m_kary_id', $karyId)
+                ->whereHas('t_jadwal_kerja_det_hari', function ($q) use ($dayNameIndo, $dayNum, $todayDate) {
+                    $q->where('day', $dayNameIndo)
+                        ->orWhere('day_num', $dayNum)
+                        ->orWhere('tanggal', $todayDate);
+                })
+                ->with(['t_jadwal_kerja_det_hari.m_jam_kerja'])
+                ->first();
+
+            if ($detKary && $detKary->t_jadwal_kerja_det_hari) {
+                $jadwalDetHari = $detKary->t_jadwal_kerja_det_hari;
+            }
+
+            if (!$jadwalDetHari && $kary && $kary->t_jadwal_kerja_id) {
+                $jadwalDetHari = t_jadwal_kerja_det_hari::where('t_jadwal_kerja_id', $kary->t_jadwal_kerja_id)
+                    ->where(function ($q) use ($dayNameIndo, $dayNum, $todayDate) {
+                        $q->where('day', $dayNameIndo)
+                            ->orWhere('day_num', $dayNum)
+                            ->orWhere('tanggal', $todayDate);
+                    })
+                    ->with('m_jam_kerja')
+                    ->first();
+            }
+        }
+
+        // 4. Cek Jam Kerja Reguler
+        $jamKerja = null;
+        if ($kary && $kary->m_jam_kerja_id) {
+            $jamKerja = m_jam_kerja::find($kary->m_jam_kerja_id);
+        }
+
+        // 5. Susun info jadwal
+        if ($holiday) {
+            $jadwalData = [
+                'is_libur' => true,
+                'tipe_hari' => 'LIBUR',
+                'nama_jadwal' => 'Libur Nasional',
+                'waktu_mulai' => null,
+                'waktu_akhir' => null,
+                'is_hari_berikutnya' => false,
+                'keterangan' => $holiday->desc ?? $holiday->kode ?? 'Libur Nasional',
+                'pesan_pengingat' => 'Hari ini libur nasional (' . ($holiday->desc ?? $holiday->kode) . '). Selamat beristirahat!'
+            ];
+        } elseif ($cuti) {
+            $jadwalData = [
+                'is_libur' => true,
+                'tipe_hari' => 'CUTI',
+                'nama_jadwal' => 'Cuti',
+                'waktu_mulai' => null,
+                'waktu_akhir' => null,
+                'is_hari_berikutnya' => false,
+                'keterangan' => $cuti->keterangan ?? 'Sedang Cuti',
+                'pesan_pengingat' => 'Status hari ini: Cuti (' . ($cuti->keterangan ?? 'Cuti') . ').'
+            ];
+        } elseif ($jadwalDetHari) {
+            $isLibur = strtoupper($jadwalDetHari->tipe_hari ?? '') === 'LIBUR' || strtoupper($jadwalDetHari->tipe_hari ?? '') === 'OFF';
+            $waktuMulai = $jadwalDetHari->waktu_mulai ? substr($jadwalDetHari->waktu_mulai, 0, 5) : null;
+            $waktuAkhir = $jadwalDetHari->waktu_akhir ? substr($jadwalDetHari->waktu_akhir, 0, 5) : null;
+            $namaJadwal = $jadwalDetHari->m_jam_kerja->kode ?? $jadwalDetHari->day ?? 'Shift';
+            $isHariBerikutnya = (bool)($jadwalDetHari->m_jam_kerja->is_hari_berikutnya ?? false);
+
+            $jadwalData = [
+                'is_libur' => $isLibur,
+                'tipe_hari' => $isLibur ? 'LIBUR' : 'KERJA',
+                'nama_jadwal' => $namaJadwal,
+                'waktu_mulai' => $waktuMulai,
+                'waktu_akhir' => $waktuAkhir,
+                'is_hari_berikutnya' => $isHariBerikutnya,
+                'keterangan' => $isLibur ? 'Hari Libur / Off Shift' : 'Shift Kerja',
+                'pesan_pengingat' => $isLibur
+                    ? 'Hari ini jadwal Anda Libur (Off). Selamat beristirahat!'
+                    : "Jadwal kerja hari ini: {$waktuMulai} - {$waktuAkhir}" . ($isHariBerikutnya ? ' (Hari Berikutnya)' : '')
+            ];
+        } elseif ($jamKerja) {
+            $isWeekend = ($dayNum == 7);
+            $waktuMulai = $jamKerja->waktu_mulai ? substr($jamKerja->waktu_mulai, 0, 5) : '08:00';
+            $waktuAkhir = $jamKerja->waktu_akhir ? substr($jamKerja->waktu_akhir, 0, 5) : '17:00';
+            $isHariBerikutnya = (bool)($jamKerja->is_hari_berikutnya ?? false);
+
+            if ($isWeekend) {
+                $jadwalData = [
+                    'is_libur' => true,
+                    'tipe_hari' => 'LIBUR',
+                    'nama_jadwal' => 'Libur Akhir Pekan',
+                    'waktu_mulai' => null,
+                    'waktu_akhir' => null,
+                    'is_hari_berikutnya' => false,
+                    'keterangan' => 'Libur Akhir Pekan',
+                    'pesan_pengingat' => 'Hari ini hari Minggu (Libur). Selamat beristirahat!'
+                ];
+            } else {
+                $jadwalData = [
+                    'is_libur' => false,
+                    'tipe_hari' => 'KERJA',
+                    'nama_jadwal' => $jamKerja->kode ?? 'Reguler',
+                    'waktu_mulai' => $waktuMulai,
+                    'waktu_akhir' => $waktuAkhir,
+                    'is_hari_berikutnya' => $isHariBerikutnya,
+                    'keterangan' => $jamKerja->desc ?? 'Jam Kerja Reguler',
+                    'pesan_pengingat' => "Jadwal kerja hari ini: {$waktuMulai} - {$waktuAkhir}"
+                ];
+            }
+        } else {
+            $isWeekend = ($dayNum == 7);
+            $jadwalData = [
+                'is_libur' => $isWeekend,
+                'tipe_hari' => $isWeekend ? 'LIBUR' : 'KERJA',
+                'nama_jadwal' => $isWeekend ? 'Libur' : 'Reguler',
+                'waktu_mulai' => $isWeekend ? null : '08:00',
+                'waktu_akhir' => $isWeekend ? null : '17:00',
+                'is_hari_berikutnya' => false,
+                'keterangan' => null,
+                'pesan_pengingat' => $isWeekend ? 'Hari ini libur. Selamat beristirahat!' : 'Jadwal kerja hari ini: 08:00 - 17:00'
+            ];
+        }
+
+        // 6. Enrich dengan status absensi
+        $presensiStatus = $presensi->status ?? 'NOT ATTEND';
+        $checkinTime = ($presensi && $presensi->checkin_time) ? substr($presensi->checkin_time, 0, 5) : null;
+        $checkoutTime = ($presensi && $presensi->checkout_time) ? substr($presensi->checkout_time, 0, 5) : null;
+
+        $jadwalData['checkin_time'] = $checkinTime;
+        $jadwalData['checkout_time'] = $checkoutTime;
+        $jadwalData['status_absensi'] = $presensiStatus;
+
+        if (!$jadwalData['is_libur'] && $jadwalData['waktu_mulai']) {
+            if ($presensiStatus === 'NOT ATTEND') {
+                $jadwalData['pesan_pengingat'] = "Jadwal kerja Anda hari ini ({$dayNameIndo}): {$jadwalData['waktu_mulai']} - {$jadwalData['waktu_akhir']}. Jangan lupa lakukan Absen Masuk (Checkin)!";
+            } elseif ($presensiStatus === 'WORKING') {
+                $jadwalData['pesan_pengingat'] = "Anda sudah Checkin pukul {$checkinTime}. Jadwal selesai kerja pukul {$jadwalData['waktu_akhir']}. Jangan lupa Checkout saat jam pulang.";
+            } elseif ($presensiStatus === 'ATTEND') {
+                $jadwalData['pesan_pengingat'] = "Presensi hari ini lengkap (Checkin: {$checkinTime}, Checkout: {$checkoutTime}). Terima kasih atas kerja keras Anda!";
+            }
+        }
+
+        return $jadwalData;
     }
 
     public function custom_istirahat($req)

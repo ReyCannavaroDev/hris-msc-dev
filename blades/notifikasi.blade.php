@@ -35,6 +35,55 @@
       </div>
       <div class="flex items-center justify-between">
         <div class="w-[100%] h-[440px] overflow-y-scroll">
+          <!-- Pengingat Jadwal Kerja Hari Ini -->
+          <div v-if="dataJadwal" class="rounded-none border border-l-0 border-r-0 border-t-0 border-neutral-200 !bg-blue-50 dark:border-neutral-600 dark:bg-neutral-800 mb-4">
+            <h2 class="mb-0" id="flush-headingJadwal">
+              <button
+                @click="isJadwalOpen = !isJadwalOpen"
+                class="group relative flex w-full items-center rounded-none border-0 !bg-gradient-to-r from-blue-600 to-blue-500 px-5 py-2 text-left text-base font-medium text-white transition [overflow-anchor:none] hover:z-[2] focus:z-[3] focus:outline-none"
+                type="button">
+                <span class="flex items-center gap-2">
+                  <Icon fa="calendar-check" />
+                  Pengingat Jadwal Kerja Hari Ini
+                </span>
+                <span class="-mr-1 ml-auto h-5 w-5 shrink-0 fill-white transition-transform duration-200 ease-in-out">
+                  <Icon :fa="isJadwalOpen ? 'arrow-down-wide-short' : 'times'" />
+                </span>
+              </button>
+            </h2>
+            <div class="!visible border-0 p-4 bg-white" :class="isJadwalOpen ? '' : 'hidden'">
+              <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 p-3.5 rounded-lg border border-blue-100 bg-blue-50/50">
+                <div class="flex-1">
+                  <div class="flex items-center gap-2 mb-1.5">
+                    <span class="text-xs font-bold uppercase tracking-wider bg-blue-600 text-white px-2.5 py-0.5 rounded">
+                      {{ dataJadwal.nama_jadwal }}
+                    </span>
+                    <span v-if="dataJadwal.is_libur" class="text-xs font-semibold bg-red-100 text-red-700 px-2.5 py-0.5 rounded">
+                      Libur / Tidak Aktif
+                    </span>
+                    <span v-else class="text-xs font-semibold bg-green-100 text-green-700 px-2.5 py-0.5 rounded">
+                      Hari Kerja
+                    </span>
+                  </div>
+                  <p class="text-sm text-gray-700 font-medium leading-relaxed">{{ dataJadwal.pesan_pengingat }}</p>
+                </div>
+                <div v-if="!dataJadwal.is_libur && dataJadwal.waktu_mulai" class="flex items-center gap-3 text-xs font-semibold shrink-0">
+                  <div class="bg-white px-3 py-1.5 rounded-lg border border-gray-200 text-center shadow-xs">
+                    <span class="text-gray-400 block text-[10px] font-bold">MASUK</span>
+                    <span class="text-blue-700 text-sm font-bold">{{ dataJadwal.waktu_mulai }} WIB</span>
+                  </div>
+                  <div class="bg-white px-3 py-1.5 rounded-lg border border-gray-200 text-center shadow-xs">
+                    <span class="text-gray-400 block text-[10px] font-bold">PULANG</span>
+                    <span class="text-red-600 text-sm font-bold">{{ dataJadwal.waktu_akhir }} WIB</span>
+                  </div>
+                  <RouterLink to="/presensi_absen_online" class="bg-blue-600 hover:bg-blue-700 text-white px-3.5 py-2 rounded-lg font-medium text-xs transition shadow-sm hover:shadow">
+                    Ke Absen Online &rarr;
+                  </RouterLink>
+                </div>
+              </div>
+            </div>
+          </div>
+
           <div v-if="is_superadmin && dataKontrak.length > 0" class="rounded-none border border-l-0 border-r-0 border-t-0 border-neutral-200 !bg-yellow-300 dark:border-neutral-600 dark:bg-neutral-800 mb-4">
             <h2 class="mb-0" id="flush-headingKontrak">
               <button
@@ -174,10 +223,6 @@
         </div>
       </div>
     </div>
-  
-      
-
   </div>
-
 </div>
 @endverbatim

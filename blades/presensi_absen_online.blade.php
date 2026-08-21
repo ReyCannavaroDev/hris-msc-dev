@@ -19,7 +19,79 @@
           </button>
         </div>
   <div v-show="activeTabIndex === 0">
-    <h1 class="font-semibold text-xl mt-8 text-center">{{form.attending?.toLowerCase() === 'not attend' ? 'Absen Checkin' : (form.attending?.toLowerCase() === 'working' ? 'Absen Checkout' : 'Sudah Absen')}} </h1>
+    <!-- Card Pengingat Jadwal Kerja Harian -->
+    <div v-if="form.jadwal" class="mt-4 w-full max-w-xl mx-auto">
+      <div 
+        class="rounded-xl p-4 shadow-sm border transition-all duration-300"
+        :class="{
+          'bg-blue-50 border-blue-200 text-blue-900': !form.jadwal.is_libur && form.attending?.toLowerCase() === 'not attend',
+          'bg-amber-50 border-amber-200 text-amber-900': !form.jadwal.is_libur && form.attending?.toLowerCase() === 'working',
+          'bg-emerald-50 border-emerald-200 text-emerald-900': !form.jadwal.is_libur && form.attending?.toLowerCase() === 'attend',
+          'bg-gray-50 border-gray-200 text-gray-800': form.jadwal.is_libur
+        }"
+      >
+        <div class="flex items-center justify-between border-b pb-2 mb-3" :class="{
+          'border-blue-200': !form.jadwal.is_libur && form.attending?.toLowerCase() === 'not attend',
+          'border-amber-200': !form.jadwal.is_libur && form.attending?.toLowerCase() === 'working',
+          'border-emerald-200': !form.jadwal.is_libur && form.attending?.toLowerCase() === 'attend',
+          'border-gray-200': form.jadwal.is_libur
+        }">
+          <div class="flex items-center gap-2">
+            <span class="p-1.5 rounded-lg text-white text-xs" :class="{
+              'bg-blue-600': !form.jadwal.is_libur && form.attending?.toLowerCase() === 'not attend',
+              'bg-amber-600': !form.jadwal.is_libur && form.attending?.toLowerCase() === 'working',
+              'bg-emerald-600': !form.jadwal.is_libur && form.attending?.toLowerCase() === 'attend',
+              'bg-gray-500': form.jadwal.is_libur
+            }">
+              <icon fa="calendar-check" />
+            </span>
+            <span class="font-bold text-sm">Pengingat Jadwal Kerja Hari Ini</span>
+          </div>
+          <span 
+            class="text-xs font-semibold px-2.5 py-0.5 rounded-full"
+            :class="{
+              'bg-blue-200 text-blue-800': !form.jadwal.is_libur && form.attending?.toLowerCase() === 'not attend',
+              'bg-amber-200 text-amber-800': !form.jadwal.is_libur && form.attending?.toLowerCase() === 'working',
+              'bg-emerald-200 text-emerald-800': !form.jadwal.is_libur && form.attending?.toLowerCase() === 'attend',
+              'bg-gray-200 text-gray-700': form.jadwal.is_libur
+            }"
+          >
+            {{ form.jadwal.nama_jadwal }}
+          </span>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3 mb-2 text-center" v-if="!form.jadwal.is_libur && form.jadwal.waktu_mulai">
+          <div class="bg-white bg-opacity-70 rounded-lg p-2 border border-gray-100 shadow-2xs">
+            <p class="text-xs text-gray-500 font-medium">Jam Masuk (Checkin)</p>
+            <p class="text-base font-bold text-gray-800 mt-0.5">
+              <icon fa="right-to-bracket" class="text-blue-500 mr-1 text-xs" />
+              {{ form.jadwal.waktu_mulai }} WIB
+            </p>
+            <span v-if="form.jadwal.checkin_time" class="text-[11px] text-green-600 font-semibold block mt-0.5">
+              ✓ Absen: {{ form.jadwal.checkin_time }}
+            </span>
+          </div>
+          <div class="bg-white bg-opacity-70 rounded-lg p-2 border border-gray-100 shadow-2xs">
+            <p class="text-xs text-gray-500 font-medium">Jam Pulang (Checkout)</p>
+            <p class="text-base font-bold text-gray-800 mt-0.5">
+              <icon fa="right-from-bracket" class="text-red-500 mr-1 text-xs" />
+              {{ form.jadwal.waktu_akhir }} WIB
+              <span v-if="form.jadwal.is_hari_berikutnya" class="text-[10px] text-orange-600 block">(Hari Berikutnya)</span>
+            </p>
+            <span v-if="form.jadwal.checkout_time" class="text-[11px] text-green-600 font-semibold block mt-0.5">
+              ✓ Absen: {{ form.jadwal.checkout_time }}
+            </span>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-2 text-xs font-medium mt-2 pt-1">
+          <icon fa="circle-info" class="text-sm shrink-0" />
+          <p>{{ form.jadwal.pesan_pengingat }}</p>
+        </div>
+      </div>
+    </div>
+
+    <h1 class="font-semibold text-xl mt-6 text-center">{{form.attending?.toLowerCase() === 'not attend' ? 'Absen Checkin' : (form.attending?.toLowerCase() === 'working' ? 'Absen Checkout' : 'Sudah Absen')}} </h1>
       <div class="mt-4 lg:mt-6">
         <video style="transform: scaleX(-1)" v-show="!isImage" v-if="form.attending?.toLowerCase() !== 'attend'" ref="videoElement" autoplay playsinline muted class="rounded-xl h-full lg:h-[20rem] m-auto"></video>
         <!-- <div v-if="isImage" class="bg-gray-600 rounded-xl"></div> -->

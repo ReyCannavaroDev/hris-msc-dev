@@ -26,6 +26,8 @@ const changedValues = []
 let dataLanding = reactive({items:[]})
 const dataKontrak = ref([])
 const isKontrakOpen = ref(true)
+const dataJadwal = ref(null)
+const isJadwalOpen = ref(true)
 const is_superadmin = ref(false)
 const values = reactive({})
 let params = { join: false, transform: false, single:true }
@@ -41,6 +43,20 @@ onMounted(async () => {
         const dataMe = await resMe.json();
         is_superadmin.value = dataMe?.is_superadmin ?? false;
 
+        // Fetch Jadwal Kerja Hari Ini
+        try {
+            const resJadwal = await fetch(`${store.server.url_backend}/operation/presensi_absensi/status`, {
+                headers: {
+                    'Content-Type': 'Application/json',
+                    Authorization: `${store.user.token_type} ${store.user.token}`
+                }
+            });
+            const dataJ = await resJadwal.json();
+            dataJadwal.value = dataJ?.data?.jadwal || null;
+        } catch (e) {
+            console.error("Error fetching notif jadwal", e);
+        }
+
         if (is_superadmin.value) {
             const resKontrak = await fetch(`${store.server.url_backend}/operation/m_kary_det_kontrak/notifEndKontrak`, {
                 headers: {
@@ -52,7 +68,7 @@ onMounted(async () => {
             dataKontrak.value = dataK?.data || [];
         }
     } catch (e) {
-        console.error("Error fetching notif kontrak", e);
+        console.error("Error fetching notif", e);
     }
     
     loadTable();

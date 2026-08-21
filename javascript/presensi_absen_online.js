@@ -143,7 +143,8 @@ const form = reactive({
   istirahat_tipe: null,
   istirahat_start: null,
   istirahat_end: null,
-  istirahat_durasi: null
+  istirahat_durasi: null,
+  jadwal: null
 })
 for(let i = form.year; i >= 2010; i-- ){
     listTahun.push(i)
@@ -365,6 +366,7 @@ async function checkLastStatus(){
     form.istirahat_start = data.istirahat_start
     form.istirahat_end = data.istirahat_end
     form.istirahat_durasi = data.istirahat_durasi
+    form.jadwal = data.jadwal || null
 
     if(form.attending?.toLowerCase() === 'attend'){
       // const stream = videoElement.value.srcObject
