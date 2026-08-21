@@ -1942,4 +1942,187 @@ class presensi_absensi extends \App\Models\BasicModels\presensi_absensi
         }
   }
 
+  public function custom_lembur_otomatis($req)
+  {
+      try {
+          $month = $req->month ?? Carbon::now()->format('Y-m');
+          $start = Carbon::parse($month . '-01')->startOfMonth()->format('Y-m-d');
+          $end = Carbon::parse($month . '-01')->endOfMonth()->format('Y-m-d');
+
+          $query = DB::table('presensi_absensi as p')
+              ->join('default_users as u', 'p.default_user_id', '=', 'u.id')
+              ->join('m_kary as k', 'u.m_kary_id', '=', 'k.id')
+              ->leftJoin('m_dir as d', 'k.m_dir_id', '=', 'd.id')
+              ->leftJoin('m_divisi as div', 'k.m_divisi_id', '=', 'div.id')
+              ->whereBetween('p.tanggal', [$start, $end])
+              ->where('p.status', 'ATTEND')
+              ->whereNotNull('p.checkout_time')
+              ->select(
+                  'k.kode as nik',
+                  'k.nama_lengkap as nama',
+                  'd.nama as unit',
+                  'div.nama as jabatan',
+                  'p.tanggal',
+                  'p.checkout_time as checkout_aktual',
+                  'p.t_jadwal_kerja_det_hari_id',
+                  'k.t_jadwal_kerja_id'
+              );
+
+          if ($req->m_dir_id) $query->where('k.m_dir_id', $req->m_dir_id);
+          if ($req->m_divisi_id) $query->where('k.m_divisi_id', $req->m_divisi_id);
+          if ($req->m_kary_id) $query->where('k.id', $req->m_kary_id);
+
+          $data = $query->orderBy('p.tanggal', 'asc')->orderBy('k.nama_lengkap', 'asc')->get();
+
+          // Preload schedule definitions to prevent N+1 queries
+          $jadwalDetHari = DB::table('t_jadwal_kerja_det_hari')->get();
+          $jadwalMap = $jadwalDetHari->keyBy('id');
+          $jadwalFallbackMap = [];
+          foreach ($jadwalDetHari as $j) {
+              $jadwalFallbackMap[$j->t_jadwal_kerja_id][trim($j->day)] = $j;
+          }
+
+          $rows = [];
+
+          foreach ($data as $dt) {
+              $dayName = Carbon::parse($dt->tanggal)->translatedFormat('l');
+              $jadwal = null;
+
+              if ($dt->t_jadwal_kerja_det_hari_id && isset($jadwalMap[$dt->t_jadwal_kerja_det_hari_id])) {
+                  $jadwal = $jadwalMap[$dt->t_jadwal_kerja_det_hari_id];
+              } elseif ($dt->t_jadwal_kerja_id && isset($jadwalFallbackMap[$dt->t_jadwal_kerja_id][$dayName])) {
+                  $jadwal = $jadwalFallbackMap[$dt->t_jadwal_kerja_id][$dayName];
+              }
+
+              if ($jadwal && $jadwal->waktu_akhir && $dt->checkout_aktual) {
+                  $waktuJadwalPulang = Carbon::parse($jadwal->waktu_akhir);
+                  $waktuAktualPulang = Carbon::parse(Carbon::parse($dt->checkout_aktual)->format('H:i:s'));
+
+                  if ($waktuAktualPulang->gt($waktuJadwalPulang)) {
+                      $menit_lembur = $waktuJadwalPulang->diffInMinutes($waktuAktualPulang);
+                      $jam_lembur = round($menit_lembur / 60, 2);
+                      $nominal_lembur = $jam_lembur * 10000;
+
+                      $rows[] = [
+                          'nik' => $dt->nik,
+                          'nama' => $dt->nama,
+                          'unit' => $dt->unit ?? '-',
+                          'jabatan' => $dt->jabatan ?? '-',
+                          'tanggal' => Carbon::parse($dt->tanggal)->format('d-m-Y'),
+                          'hari' => $dayName,
+                          'tipe_hari' => $jadwal->tipe_hari ?? 'KERJA',
+                          'jam_selesai_jadwal' => $jadwal->waktu_akhir,
+                          'checkout_aktual' => $dt->checkout_aktual,
+                          'menit_lembur' => $menit_lembur,
+                          'jam_lembur' => $jam_lembur,
+                          'nominal_lembur' => $nominal_lembur
+                      ];
+                  }
+              }
+          }
+
+          return $this->helper->customResponse('OK', 200, $rows);
+      } catch (\Exception $e) {
+          return $this->helper->responseCatch($e);
+      }
+  }
+
+  public function public_exportLemburOtomatis()
+  {
+      try {
+          $req = request();
+          $month = $req->month ?? Carbon::now()->format('Y-m');
+          $start = Carbon::parse($month . '-01')->startOfMonth()->format('Y-m-d');
+          $end = Carbon::parse($month . '-01')->endOfMonth()->format('Y-m-d');
+
+          $query = DB::table('presensi_absensi as p')
+              ->join('default_users as u', 'p.default_user_id', '=', 'u.id')
+              ->join('m_kary as k', 'u.m_kary_id', '=', 'k.id')
+              ->leftJoin('m_dir as d', 'k.m_dir_id', '=', 'd.id')
+              ->leftJoin('m_divisi as div', 'k.m_divisi_id', '=', 'div.id')
+              ->whereBetween('p.tanggal', [$start, $end])
+              ->where('p.status', 'ATTEND')
+              ->whereNotNull('p.checkout_time')
+              ->select(
+                  'k.kode as nik',
+                  'k.nama_lengkap as nama',
+                  'd.nama as unit',
+                  'div.nama as jabatan',
+                  'p.tanggal',
+                  'p.checkout_time as checkout_aktual',
+                  'p.t_jadwal_kerja_det_hari_id',
+                  'k.t_jadwal_kerja_id'
+              );
+
+          if ($req->m_dir_id) $query->where('k.m_dir_id', $req->m_dir_id);
+          if ($req->m_divisi_id) $query->where('k.m_divisi_id', $req->m_divisi_id);
+          if ($req->m_kary_id) $query->where('k.id', $req->m_kary_id);
+
+          $data = $query->orderBy('p.tanggal', 'asc')->orderBy('k.nama_lengkap', 'asc')->get();
+
+          // Preload schedule definitions to prevent N+1 queries
+          $jadwalDetHari = DB::table('t_jadwal_kerja_det_hari')->get();
+          $jadwalMap = $jadwalDetHari->keyBy('id');
+          $jadwalFallbackMap = [];
+          foreach ($jadwalDetHari as $j) {
+              $jadwalFallbackMap[$j->t_jadwal_kerja_id][trim($j->day)] = $j;
+          }
+
+          $rows = [];
+
+          foreach ($data as $dt) {
+              $dayName = Carbon::parse($dt->tanggal)->translatedFormat('l');
+              $jadwal = null;
+
+              if ($dt->t_jadwal_kerja_det_hari_id && isset($jadwalMap[$dt->t_jadwal_kerja_det_hari_id])) {
+                  $jadwal = $jadwalMap[$dt->t_jadwal_kerja_det_hari_id];
+              } elseif ($dt->t_jadwal_kerja_id && isset($jadwalFallbackMap[$dt->t_jadwal_kerja_id][$dayName])) {
+                  $jadwal = $jadwalFallbackMap[$dt->t_jadwal_kerja_id][$dayName];
+              }
+
+              if ($jadwal && $jadwal->waktu_akhir && $dt->checkout_aktual) {
+                  $waktuJadwalPulang = Carbon::parse($jadwal->waktu_akhir);
+                  $waktuAktualPulang = Carbon::parse(Carbon::parse($dt->checkout_aktual)->format('H:i:s'));
+
+                  if ($waktuAktualPulang->gt($waktuJadwalPulang)) {
+                      $menit_lembur = $waktuJadwalPulang->diffInMinutes($waktuAktualPulang);
+                      $jam_lembur = round($menit_lembur / 60, 2);
+                      $nominal_lembur = $jam_lembur * 10000;
+
+                      $rows[] = [
+                          'NIK' => $dt->nik,
+                          'NAMA' => $dt->nama,
+                          'UNIT' => $dt->unit ?? '-',
+                          'JABATAN' => $dt->jabatan ?? '-',
+                          'TANGGAL' => Carbon::parse($dt->tanggal)->format('d-m-Y'),
+                          'HARI' => $dayName,
+                          'TIPE HARI' => $jadwal->tipe_hari ?? 'KERJA',
+                          'JADWAL PULANG' => $jadwal->waktu_akhir,
+                          'CHECKOUT AKTUAL' => $dt->checkout_aktual,
+                          'MENIT LEMBUR' => $menit_lembur,
+                          'JAM LEMBUR' => $jam_lembur,
+                          'NOMINAL LEMBUR' => $nominal_lembur
+                      ];
+                  }
+              }
+          }
+
+          $export = new class(collect($rows)) implements FromCollection, WithHeadings {
+              protected $data;
+              public function __construct($data) { $this->data = $data; }
+              public function collection() { return $this->data; }
+              public function headings(): array {
+                  return [
+                      'NIK', 'NAMA', 'UNIT', 'JABATAN', 'TANGGAL', 'HARI',
+                      'TIPE HARI', 'JADWAL PULANG', 'CHECKOUT AKTUAL', 'MENIT LEMBUR', 'JAM LEMBUR', 'NOMINAL LEMBUR'
+                  ];
+              }
+          };
+
+          return Excel::download($export, "laporan_lembur_otomatis_{$month}.xlsx");
+      } catch (\Exception $e) {
+          return response()->json(['error' => $e->getMessage()], 500);
+      }
+  }
+
 }

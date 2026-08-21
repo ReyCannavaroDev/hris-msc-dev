@@ -391,7 +391,7 @@ class t_perhitungan_gaji extends \App\Models\BasicModels\t_perhitungan_gaji
             }
 
             if ($total_lembur_hari_libur > 0) {
-                $upahPerJam = 12500;
+                $upahPerJam = 10000;
                 $value = $total_lembur_hari_libur * $upahPerJam;
 
                 // $jamPertama = min(7, $total_lembur_hari_libur);
@@ -906,16 +906,24 @@ class t_perhitungan_gaji extends \App\Models\BasicModels\t_perhitungan_gaji
             }
 
             // --- hitung lembur ---
-            if (isset($lembur[$key])) {
-                foreach ($lembur[$key] as $l) {
-                    $mulai = Carbon::parse($l->jam_mulai);
-                    $selesai = Carbon::parse($l->jam_selesai);
-                    $menit = $selesai->diffInMinutes($mulai);
+            if ($data && $data->checkout_time && $status === "ATTEND" && !$is_before_join) {
+                $hariIndex = Carbon::parse($data->tanggal)->translatedFormat('l');
+                $jadwalAkhir = $data->t_jadwal_kerja_det_hari?->waktu_akhir;
+                if (!$jadwalAkhir) {
+                    $jadwalAkhir = isset($t_jadwal_kerja_det_hari[$hariIndex]) ? $t_jadwal_kerja_det_hari[$hariIndex]->waktu_akhir : null;
+                }
 
-                    if ($tipe === "KERJA") {
-                        $total_menit_lembur_kerja += $menit;
-                    } else {
-                        $total_menit_lembur_libur += $menit;
+                if ($jadwalAkhir) {
+                    $checkoutTime = Carbon::parse($data->checkout_time);
+                    $jadwalAkhirTime = Carbon::parse($jadwalAkhir);
+
+                    if ($checkoutTime->greaterThan($jadwalAkhirTime)) {
+                        $menit = $jadwalAkhirTime->diffInMinutes($checkoutTime);
+                        if ($tipe === "KERJA") {
+                            $total_menit_lembur_kerja += $menit;
+                        } else {
+                            $total_menit_lembur_libur += $menit;
+                        }
                     }
                 }
             }
