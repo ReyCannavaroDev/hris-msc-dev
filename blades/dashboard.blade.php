@@ -30,22 +30,31 @@
       <h2 class="font-semibold text-md justify-start mb-4">
         Pengeluaran Gaji Karyawan Per Unit <span v-if="salaryPeriodText" class="text-sm font-normal text-gray-500">(@{{ salaryPeriodText }})</span>
       </h2>
-      <column-chart :stacked="true" :library="{
+      <column-chart 
+        :stacked="true" 
+        prefix="Rp "
+        thousands="."
+        decimal=","
+        :library="{
           accessibility: {
             enabled: false
           },
+          tooltip: {
+            pointFormat: '<span style=\'color:{point.color}\'>\u25cf</span> {series.name}: <b>Rp {point.y:,.0f}</b><br/>',
+            valuePrefix: 'Rp '
+          },
           yAxis: {
-              min: 0,
-              title: {
-                  align: 'high'
-              },
-              labels: {
-                  overflow: 'justify'
-              },
-              gridLineWidth: 0,
+            min: 0,
+            title: {
+              align: 'high'
+            },
+            labels: {
+              format: 'Rp {value:,.0f}'
+            },
+            gridLineWidth: 0,
           },
           chart: {
-              backgroundColor: 'rgba(0,0,0,0)',
+            backgroundColor: 'rgba(0,0,0,0)',
           }
         }" :data="chartData" adapter="highcharts">
       </column-chart>

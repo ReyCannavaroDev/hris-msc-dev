@@ -78,6 +78,7 @@ class m_dir extends \App\Models\BasicModels\m_dir
 
     public function custom_dashboard()
     {
+        \Carbon\Carbon::setLocale('id');
         $dir_query = m_dir::where('is_active', true);
         $dir_count = $dir_query->count();
         $div_count = m_divisi::where('is_active', true)->count();
