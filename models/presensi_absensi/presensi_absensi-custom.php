@@ -2127,4 +2127,240 @@ class presensi_absensi extends \App\Models\BasicModels\presensi_absensi
       }
   }
 
+  public function custom_laporan_terlambat($req)
+  {
+      try {
+          $start = null;
+          $end = null;
+
+          // Flexible Period handling: Date Range or Month
+          if ($req->date_start && $req->date_end) {
+              $start = Carbon::parse($req->date_start)->format('Y-m-d');
+              $end = Carbon::parse($req->date_end)->format('Y-m-d');
+          } elseif ($req->date_start) {
+              $start = Carbon::parse($req->date_start)->format('Y-m-d');
+              $end = Carbon::parse($req->date_start)->format('Y-m-d');
+          } else {
+              $month = $req->month ?? $req->periode ?? Carbon::now()->format('Y-m');
+              $start = Carbon::parse($month . '-01')->startOfMonth()->format('Y-m-d');
+              $end = Carbon::parse($month . '-01')->endOfMonth()->format('Y-m-d');
+          }
+
+          $query = DB::table('presensi_absensi as p')
+              ->join('default_users as u', 'p.default_user_id', '=', 'u.id')
+              ->join('m_kary as k', 'u.m_kary_id', '=', 'k.id')
+              ->leftJoin('m_dir as d', 'k.m_dir_id', '=', 'd.id')
+              ->leftJoin('m_divisi as div', 'k.m_divisi_id', '=', 'div.id')
+              ->whereBetween('p.tanggal', [$start, $end])
+              ->where('p.status', 'ATTEND')
+              ->whereNotNull('p.checkin_time')
+              ->select(
+                  'k.kode as nik',
+                  'k.nama_lengkap as nama',
+                  'd.nama as unit',
+                  'div.nama as jabatan',
+                  'p.tanggal',
+                  'p.checkin_time as checkin_aktual',
+                  'p.checkout_time as checkout_aktual',
+                  'p.t_jadwal_kerja_det_hari_id',
+                  'k.t_jadwal_kerja_id'
+              );
+
+          if ($req->m_dir_id) $query->where('k.m_dir_id', $req->m_dir_id);
+          if ($req->m_divisi_id) $query->where('k.m_divisi_id', $req->m_divisi_id);
+          if ($req->m_kary_id) {
+              if (is_array($req->m_kary_id)) {
+                  $query->whereIn('k.id', $req->m_kary_id);
+              } elseif (strpos($req->m_kary_id, ',') !== false) {
+                  $query->whereIn('k.id', explode(',', $req->m_kary_id));
+              } else {
+                  $query->where('k.id', $req->m_kary_id);
+              }
+          }
+          if ($req->is_active !== null && $req->is_active !== '') {
+              $isActive = filter_var($req->is_active, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+              if ($isActive !== null) {
+                  $query->where('k.is_active', $isActive ? 'true' : 'false');
+              }
+          }
+
+          $data = $query->orderBy('p.tanggal', 'asc')->orderBy('k.nama_lengkap', 'asc')->get();
+
+          // Preload schedule definitions to prevent N+1 queries
+          $jadwalDetHari = DB::table('t_jadwal_kerja_det_hari')->get();
+          $jadwalMap = $jadwalDetHari->keyBy('id');
+          $jadwalFallbackMap = [];
+          foreach ($jadwalDetHari as $j) {
+              $jadwalFallbackMap[$j->t_jadwal_kerja_id][trim($j->day)] = $j;
+          }
+
+          $rows = [];
+
+          foreach ($data as $dt) {
+              $dayName = Carbon::parse($dt->tanggal)->translatedFormat('l');
+              $jadwal = null;
+
+              if ($dt->t_jadwal_kerja_det_hari_id && isset($jadwalMap[$dt->t_jadwal_kerja_det_hari_id])) {
+                  $jadwal = $jadwalMap[$dt->t_jadwal_kerja_det_hari_id];
+              } elseif ($dt->t_jadwal_kerja_id && isset($jadwalFallbackMap[$dt->t_jadwal_kerja_id][$dayName])) {
+                  $jadwal = $jadwalFallbackMap[$dt->t_jadwal_kerja_id][$dayName];
+              }
+
+              if ($jadwal && $jadwal->waktu_mulai && $dt->checkin_aktual) {
+                  $waktuJadwalMasuk = Carbon::parse(Carbon::parse($dt->tanggal)->format('Y-m-d') . ' ' . $jadwal->waktu_mulai);
+                  $waktuAktualMasuk = Carbon::parse($dt->checkin_aktual);
+
+                  if ($waktuAktualMasuk->gt($waktuJadwalMasuk)) {
+                      $menit_terlambat = $waktuJadwalMasuk->diffInMinutes($waktuAktualMasuk);
+
+                      if ($menit_terlambat > 0) {
+                          $rows[] = [
+                              'nik' => $dt->nik,
+                              'nama' => $dt->nama,
+                              'unit' => $dt->unit ?? '-',
+                              'jabatan' => $dt->jabatan ?? '-',
+                              'tanggal' => Carbon::parse($dt->tanggal)->format('d-m-Y'),
+                              'hari' => $dayName,
+                              'tipe_hari' => $jadwal->tipe_hari ?? 'KERJA',
+                              'jam_jadwal_masuk' => $jadwal->waktu_mulai,
+                              'checkin_aktual' => Carbon::parse($dt->checkin_aktual)->format('H:i:s'),
+                              'menit_terlambat' => $menit_terlambat,
+                              'keterangan' => 'Terlambat ' . $menit_terlambat . ' Menit'
+                          ];
+                      }
+                  }
+              }
+          }
+
+          return $this->helper->customResponse('OK', 200, $rows);
+      } catch (\Exception $e) {
+          return $this->helper->responseCatch($e);
+      }
+  }
+
+  public function public_exportTerlambat()
+  {
+      try {
+          $req = request();
+          $start = null;
+          $end = null;
+
+          if ($req->date_start && $req->date_end) {
+              $start = Carbon::parse($req->date_start)->format('Y-m-d');
+              $end = Carbon::parse($req->date_end)->format('Y-m-d');
+              $filenamePeriod = $start . '_sd_' . $end;
+          } elseif ($req->date_start) {
+              $start = Carbon::parse($req->date_start)->format('Y-m-d');
+              $end = Carbon::parse($req->date_start)->format('Y-m-d');
+              $filenamePeriod = $start;
+          } else {
+              $month = $req->month ?? $req->periode ?? Carbon::now()->format('Y-m');
+              $start = Carbon::parse($month . '-01')->startOfMonth()->format('Y-m-d');
+              $end = Carbon::parse($month . '-01')->endOfMonth()->format('Y-m-d');
+              $filenamePeriod = $month;
+          }
+
+          $query = DB::table('presensi_absensi as p')
+              ->join('default_users as u', 'p.default_user_id', '=', 'u.id')
+              ->join('m_kary as k', 'u.m_kary_id', '=', 'k.id')
+              ->leftJoin('m_dir as d', 'k.m_dir_id', '=', 'd.id')
+              ->leftJoin('m_divisi as div', 'k.m_divisi_id', '=', 'div.id')
+              ->whereBetween('p.tanggal', [$start, $end])
+              ->where('p.status', 'ATTEND')
+              ->whereNotNull('p.checkin_time')
+              ->select(
+                  'k.kode as nik',
+                  'k.nama_lengkap as nama',
+                  'd.nama as unit',
+                  'div.nama as jabatan',
+                  'p.tanggal',
+                  'p.checkin_time as checkin_aktual',
+                  'p.checkout_time as checkout_aktual',
+                  'p.t_jadwal_kerja_det_hari_id',
+                  'k.t_jadwal_kerja_id'
+              );
+
+          if ($req->m_dir_id) $query->where('k.m_dir_id', $req->m_dir_id);
+          if ($req->m_divisi_id) $query->where('k.m_divisi_id', $req->m_divisi_id);
+          if ($req->m_kary_id) {
+              if (is_array($req->m_kary_id)) {
+                  $query->whereIn('k.id', $req->m_kary_id);
+              } elseif (strpos($req->m_kary_id, ',') !== false) {
+                  $query->whereIn('k.id', explode(',', $req->m_kary_id));
+              } else {
+                  $query->where('k.id', $req->m_kary_id);
+              }
+          }
+          if ($req->is_active !== null && $req->is_active !== '') {
+              $isActive = filter_var($req->is_active, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+              if ($isActive !== null) {
+                  $query->where('k.is_active', $isActive ? 'true' : 'false');
+              }
+          }
+
+          $data = $query->orderBy('p.tanggal', 'asc')->orderBy('k.nama_lengkap', 'asc')->get();
+
+          $jadwalDetHari = DB::table('t_jadwal_kerja_det_hari')->get();
+          $jadwalMap = $jadwalDetHari->keyBy('id');
+          $jadwalFallbackMap = [];
+          foreach ($jadwalDetHari as $j) {
+              $jadwalFallbackMap[$j->t_jadwal_kerja_id][trim($j->day)] = $j;
+          }
+
+          $rows = [];
+
+          foreach ($data as $dt) {
+              $dayName = Carbon::parse($dt->tanggal)->translatedFormat('l');
+              $jadwal = null;
+
+              if ($dt->t_jadwal_kerja_det_hari_id && isset($jadwalMap[$dt->t_jadwal_kerja_det_hari_id])) {
+                  $jadwal = $jadwalMap[$dt->t_jadwal_kerja_det_hari_id];
+              } elseif ($dt->t_jadwal_kerja_id && isset($jadwalFallbackMap[$dt->t_jadwal_kerja_id][$dayName])) {
+                  $jadwal = $jadwalFallbackMap[$dt->t_jadwal_kerja_id][$dayName];
+              }
+
+              if ($jadwal && $jadwal->waktu_mulai && $dt->checkin_aktual) {
+                  $waktuJadwalMasuk = Carbon::parse(Carbon::parse($dt->tanggal)->format('Y-m-d') . ' ' . $jadwal->waktu_mulai);
+                  $waktuAktualMasuk = Carbon::parse($dt->checkin_aktual);
+
+                  if ($waktuAktualMasuk->gt($waktuJadwalMasuk)) {
+                      $menit_terlambat = $waktuJadwalMasuk->diffInMinutes($waktuAktualMasuk);
+
+                      if ($menit_terlambat > 0) {
+                          $rows[] = [
+                              'NIK' => $dt->nik,
+                              'NAMA' => $dt->nama,
+                              'UNIT' => $dt->unit ?? '-',
+                              'JABATAN' => $dt->jabatan ?? '-',
+                              'TANGGAL' => Carbon::parse($dt->tanggal)->format('d-m-Y'),
+                              'HARI' => $dayName,
+                              'TIPE HARI' => $jadwal->tipe_hari ?? 'KERJA',
+                              'JADWAL MASUK' => $jadwal->waktu_mulai,
+                              'CHECKIN AKTUAL' => Carbon::parse($dt->checkin_aktual)->format('H:i:s'),
+                              'MENIT TERLAMBAT' => $menit_terlambat,
+                              'KETERANGAN' => 'Terlambat ' . $menit_terlambat . ' Menit'
+                          ];
+                      }
+                  }
+              }
+          }
+
+          $export = new class(collect($rows)) implements FromCollection, WithHeadings {
+              protected $data;
+              public function __construct($data) { $this->data = $data; }
+              public function collection() { return $this->data; }
+              public function headings(): array {
+                  return [
+                      'NIK', 'NAMA', 'UNIT', 'JABATAN', 'TANGGAL', 'HARI',
+                      'TIPE HARI', 'JADWAL MASUK', 'CHECKIN AKTUAL', 'MENIT TERLAMBAT', 'KETERANGAN'
+                  ];
+              }
+          };
+
+          return Excel::download($export, "laporan_terlambat_{$filenamePeriod}.xlsx");
+      } catch (\Exception $e) {
+          return response()->json(['error' => $e->getMessage()], 500);
+      }
+  }
+
 }
