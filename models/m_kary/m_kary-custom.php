@@ -1081,7 +1081,7 @@ class m_kary extends \App\Models\BasicModels\m_kary
             $id_kary = default_users::find(auth()->user()->id)->m_kary_id;
             \DB::table('m_kary_det_pres')->insert([
                 'm_kary_id' => $id_kary,
-               	'm_comp_id' => $req->m_comp_id ?? null,
+                'm_comp_id' => $req->m_comp_id ?? null,
                 'm_dir_id' => $req->m_dir_id ?? null,
                 'nama_pres' => $req->nama_pres,
                 'tahun' => $req->tahun,
@@ -2191,5 +2191,556 @@ class m_kary extends \App\Models\BasicModels\m_kary
         return $result;
     }
 
+    public function custom_laporan_history_karyawan($req)
+    {
+        try {
+            $start = null;
+            $end = null;
+            $filterDate = false;
 
+            if ($req->tipe_periode === 'Rentang Tanggal' && $req->date_start && $req->date_end) {
+                $start = Carbon::parse($req->date_start)->format('Y-m-d');
+                $end = Carbon::parse($req->date_end)->format('Y-m-d');
+                $filterDate = true;
+            } elseif ($req->tipe_periode === 'Bulan' && ($req->month || $req->periode)) {
+                $month = $req->month ?? $req->periode;
+                $start = Carbon::parse($month . '-01')->startOfMonth()->format('Y-m-d');
+                $end = Carbon::parse($month . '-01')->endOfMonth()->format('Y-m-d');
+                $filterDate = true;
+            }
+
+            $kategori = $req->kategori ?? 'Semua';
+
+            // 1. Base Query Karyawan
+            $karyQuery = DB::table('m_kary as k')
+                ->leftJoin('m_dir as d', 'k.m_dir_id', '=', 'd.id')
+                ->leftJoin('m_divisi as div', 'k.m_divisi_id', '=', 'div.id')
+                ->select(
+                    'k.id',
+                    'k.kode as nik',
+                    'k.nama_lengkap as nama',
+                    'd.nama as unit_sekarang',
+                    'div.nama as jabatan_sekarang',
+                    'k.tgl_masuk',
+                    'k.tgl_berhenti',
+                    'k.is_active'
+                );
+
+            if ($req->m_dir_id) $karyQuery->where('k.m_dir_id', $req->m_dir_id);
+            if ($req->m_divisi_id) $karyQuery->where('k.m_divisi_id', $req->m_divisi_id);
+            if ($req->m_kary_id) {
+                if (is_array($req->m_kary_id)) {
+                    $karyQuery->whereIn('k.id', $req->m_kary_id);
+                } elseif (strpos($req->m_kary_id, ',') !== false) {
+                    $karyQuery->whereIn('k.id', explode(',', $req->m_kary_id));
+                } else {
+                    $karyQuery->where('k.id', $req->m_kary_id);
+                }
+            }
+            if ($req->is_active !== null && $req->is_active !== '' && $req->is_active !== 'Semua') {
+                $isActive = filter_var($req->is_active, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+                if ($isActive !== null) {
+                    $karyQuery->where('k.is_active', $isActive ? 'true' : 'false');
+                }
+            }
+
+            $karyawanList = $karyQuery->get()->keyBy('id');
+            $karyawanIds = $karyawanList->keys()->toArray();
+
+            if (empty($karyawanIds)) {
+                return $this->helper->customResponse('OK', 200, []);
+            }
+
+            $historyList = [];
+
+            // A. Riwayat Mutasi Unit, Jabatan & Kontrak (m_kary_det_kontrak & t_extend_kontrak)
+            if ($kategori === 'Semua' || $kategori === 'Mutasi & Kontrak') {
+                // Dari m_kary_det_kontrak
+                $kontrakQ = DB::table('m_kary_det_kontrak as kdk')
+                    ->leftJoin('m_dir as d', 'kdk.m_dir_id', '=', 'd.id')
+                    ->leftJoin('m_divisi as div', 'kdk.m_divisi_id', '=', 'div.id')
+                    ->leftJoin('m_general as gen', 'kdk.tipe_karyawan_id', '=', 'gen.id')
+                    ->whereIn('kdk.m_karyawan_id', $karyawanIds)
+                    ->select(
+                        'kdk.m_karyawan_id',
+                        'kdk.tgl_awal',
+                        'kdk.tgl_akhir',
+                        'kdk.duration',
+                        'kdk.status',
+                        'd.nama as unit',
+                        'div.nama as jabatan',
+                        'gen.value as tipe_karyawan'
+                    );
+
+                if ($filterDate) {
+                    $kontrakQ->where(function($q) use ($start, $end) {
+                        $q->whereBetween('kdk.tgl_awal', [$start, $end])
+                          ->orWhereBetween('kdk.tgl_akhir', [$start, $end]);
+                    });
+                }
+                $kontrakData = $kontrakQ->get();
+
+                foreach ($kontrakData as $kd) {
+                    $kary = $karyawanList[$kd->m_karyawan_id] ?? null;
+                    if (!$kary) continue;
+
+                    $tglAwal = $kd->tgl_awal ? Carbon::parse($kd->tgl_awal)->format('d-m-Y') : '-';
+                    $tglAkhir = $kd->tgl_akhir ? Carbon::parse($kd->tgl_akhir)->format('d-m-Y') : '-';
+
+                    $historyList[] = [
+                        'tanggal_sort' => $kd->tgl_awal ?? '1970-01-01',
+                        'nik' => $kary->nik ?? '-',
+                        'nama' => $kary->nama ?? '-',
+                        'kategori' => 'Mutasi & Kontrak',
+                        'unit' => $kd->unit ?? $kary->unit_sekarang ?? '-',
+                        'jabatan' => $kd->jabatan ?? $kary->jabatan_sekarang ?? '-',
+                        'tanggal' => "{$tglAwal} s/d {$tglAkhir}",
+                        'deskripsi' => "Kontrak / Penempatan {$kd->tipe_karyawan} ({$kd->duration} Bulan)",
+                        'keterangan_detail' => "Unit: " . ($kd->unit ?? '-') . " | Jabatan: " . ($kd->jabatan ?? '-'),
+                        'status' => $kd->status ? 'Aktif' : 'Selesai'
+                    ];
+                }
+
+                // Dari t_extend_kontrak
+                $extendQ = DB::table('t_extend_kontrak as tek')
+                    ->leftJoin('m_dir as d', 'tek.m_dir_id', '=', 'd.id')
+                    ->leftJoin('m_divisi as div', 'tek.m_divisi_id', '=', 'div.id')
+                    ->leftJoin('m_general as gen', 'tek.tipe_karyawan_id', '=', 'gen.id')
+                    ->whereIn('tek.m_karyawan_id', $karyawanIds)
+                    ->select(
+                        'tek.m_karyawan_id',
+                        'tek.nomor',
+                        'tek.tgl_awal',
+                        'tek.tgl_akhir',
+                        'tek.duration',
+                        'tek.status',
+                        'tek.catatan',
+                        'd.nama as unit',
+                        'div.nama as jabatan',
+                        'gen.value as tipe_karyawan'
+                    );
+
+                if ($filterDate) {
+                    $extendQ->where(function($q) use ($start, $end) {
+                        $q->whereBetween('tek.tgl_awal', [$start, $end])
+                          ->orWhereBetween('tek.tgl_akhir', [$start, $end]);
+                    });
+                }
+                $extendData = $extendQ->get();
+
+                foreach ($extendData as $ed) {
+                    $kary = $karyawanList[$ed->m_karyawan_id] ?? null;
+                    if (!$kary) continue;
+
+                    $tglAwal = $ed->tgl_awal ? Carbon::parse($ed->tgl_awal)->format('d-m-Y') : '-';
+                    $tglAkhir = $ed->tgl_akhir ? Carbon::parse($ed->tgl_akhir)->format('d-m-Y') : '-';
+
+                    $historyList[] = [
+                        'tanggal_sort' => $ed->tgl_awal ?? '1970-01-01',
+                        'nik' => $kary->nik ?? '-',
+                        'nama' => $kary->nama ?? '-',
+                        'kategori' => 'Mutasi & Kontrak',
+                        'unit' => $ed->unit ?? $kary->unit_sekarang ?? '-',
+                        'jabatan' => $ed->jabatan ?? $kary->jabatan_sekarang ?? '-',
+                        'tanggal' => "{$tglAwal} s/d {$tglAkhir}",
+                        'deskripsi' => "Perpanjangan Kontrak: " . ($ed->nomor ?? '-') . " ({$ed->duration} Bulan)",
+                        'keterangan_detail' => ($ed->catatan ? $ed->catatan . " | " : "") . "Tipe: " . ($ed->tipe_karyawan ?? '-'),
+                        'status' => $ed->status ?? 'APPROVED'
+                    ];
+                }
+            }
+
+            // B. Riwayat Gaji & Penggajian (t_final_gaji_det)
+            if ($kategori === 'Semua' || $kategori === 'Riwayat Gaji') {
+                $gajiQ = DB::table('t_final_gaji_det as fgd')
+                    ->leftJoin('t_final_gaji as fg', 'fgd.t_final_gaji_id', '=', 'fg.id')
+                    ->whereIn('fgd.m_kary_id', $karyawanIds)
+                    ->select(
+                        'fgd.m_kary_id',
+                        'fgd.periode',
+                        'fgd.periode_in_date',
+                        'fg.periode_awal',
+                        'fg.periode_akhir',
+                        'fg.status as status_gaji',
+                        'fgd.status as status_gaji_det',
+                        'fgd.netto',
+                        'fgd.total_gaji',
+                        'fgd.total_tax'
+                    );
+
+                if ($filterDate) {
+                    $gajiQ->where(function($q) use ($start, $end) {
+                        $q->whereBetween('fgd.periode_in_date', [$start, $end])
+                          ->orWhere(function($sub) use ($start, $end) {
+                              $sub->whereNotNull('fgd.periode')
+                                  ->whereBetween('fgd.periode', [$start, $end]);
+                          })
+                          ->orWhereBetween('fg.periode_awal', [$start, $end])
+                          ->orWhereBetween('fg.periode_akhir', [$start, $end]);
+                    });
+                }
+                $gajiData = $gajiQ->orderBy('fgd.periode_in_date', 'desc')->get();
+
+                foreach ($gajiData as $gd) {
+                    $kary = $karyawanList[$gd->m_kary_id] ?? null;
+                    if (!$kary) continue;
+
+                    $sortDate = $gd->periode_in_date ?? $gd->periode_awal ?? ($gd->periode ? $gd->periode . '-01' : '1970-01-01');
+                    $periodeLabel = '-';
+                    if ($gd->periode_in_date) {
+                        $periodeLabel = Carbon::parse($gd->periode_in_date)->translatedFormat('F Y');
+                    } elseif ($gd->periode) {
+                        $periodeLabel = is_numeric(substr($gd->periode, 0, 4)) ? Carbon::parse($gd->periode . '-01')->translatedFormat('F Y') : $gd->periode;
+                    } elseif ($gd->periode_awal) {
+                        $periodeLabel = Carbon::parse($gd->periode_awal)->format('d-m-Y') . ' s/d ' . Carbon::parse($gd->periode_akhir)->format('d-m-Y');
+                    }
+
+                    $nettoFormatted = number_format($gd->netto ?? 0, 0, ',', '.');
+                    $brutoFormatted = number_format($gd->total_gaji ?? 0, 0, ',', '.');
+                    $taxFormatted = number_format($gd->total_tax ?? 0, 0, ',', '.');
+
+                    $historyList[] = [
+                        'tanggal_sort' => $sortDate,
+                        'nik' => $kary->nik ?? '-',
+                        'nama' => $kary->nama ?? '-',
+                        'kategori' => 'Riwayat Gaji',
+                        'unit' => $kary->unit_sekarang ?? '-',
+                        'jabatan' => $kary->jabatan_sekarang ?? '-',
+                        'tanggal' => $periodeLabel,
+                        'deskripsi' => "Penggajian / Payroll Periode " . $periodeLabel,
+                        'keterangan_detail' => "Bruto: Rp {$brutoFormatted} | PPh: Rp {$taxFormatted} | Netto (THP): Rp {$nettoFormatted}",
+                        'status' => $gd->status_gaji ?? $gd->status_gaji_det ?? 'POSTED'
+                    ];
+                }
+            }
+
+            // C. Riwayat Surat Peringatan / Sanksi / Penghargaan (t_surat)
+            if ($kategori === 'Semua' || $kategori === 'Surat & Disiplin') {
+                $suratQ = DB::table('t_surat as s')
+                    ->whereIn('s.m_karyawan_id', $karyawanIds)
+                    ->select(
+                        's.m_karyawan_id',
+                        's.jenis_surat',
+                        's.level_surat',
+                        's.tanggal_terbit',
+                        's.alasan',
+                        's.is_signed'
+                    );
+
+                if ($filterDate) {
+                    $suratQ->whereBetween('s.tanggal_terbit', [$start, $end]);
+                }
+                $suratData = $suratQ->get();
+
+                foreach ($suratData as $sd) {
+                    $kary = $karyawanList[$sd->m_karyawan_id] ?? null;
+                    if (!$kary) continue;
+
+                    $tglTerbit = $sd->tanggal_terbit ? Carbon::parse($sd->tanggal_terbit)->format('d-m-Y') : '-';
+
+                    $historyList[] = [
+                        'tanggal_sort' => $sd->tanggal_terbit ?? '1970-01-01',
+                        'nik' => $kary->nik ?? '-',
+                        'nama' => $kary->nama ?? '-',
+                        'kategori' => 'Surat & Disiplin',
+                        'unit' => $kary->unit_sekarang ?? '-',
+                        'jabatan' => $kary->jabatan_sekarang ?? '-',
+                        'tanggal' => $tglTerbit,
+                        'deskripsi' => "Surat: {$sd->jenis_surat} " . ($sd->level_surat ? "({$sd->level_surat})" : ""),
+                        'keterangan_detail' => $sd->alasan ?? 'Penerbitan surat resmi',
+                        'status' => $sd->is_signed ? 'Ditandatangani' : 'Terbit'
+                    ];
+                }
+            }
+
+            // D. Tanggal Masuk & Berhenti Karyawan
+            if ($kategori === 'Semua') {
+                foreach ($karyawanList as $kary) {
+                    if ($kary->tgl_masuk) {
+                        if (!$filterDate || ($kary->tgl_masuk >= $start && $kary->tgl_masuk <= $end)) {
+                            $historyList[] = [
+                                'tanggal_sort' => $kary->tgl_masuk,
+                                'nik' => $kary->nik ?? '-',
+                                'nama' => $kary->nama ?? '-',
+                                'kategori' => 'Status Karyawan',
+                                'unit' => $kary->unit_sekarang ?? '-',
+                                'jabatan' => $kary->jabatan_sekarang ?? '-',
+                                'tanggal' => Carbon::parse($kary->tgl_masuk)->format('d-m-Y'),
+                                'deskripsi' => "Tanggal Masuk / Onboarding Perusahaan",
+                                'keterangan_detail' => "Bergabung sebagai " . ($kary->jabatan_sekarang ?? 'Karyawan'),
+                                'status' => 'Aktif'
+                            ];
+                        }
+                    }
+
+                    if ($kary->tgl_berhenti) {
+                        if (!$filterDate || ($kary->tgl_berhenti >= $start && $kary->tgl_berhenti <= $end)) {
+                            $historyList[] = [
+                                'tanggal_sort' => $kary->tgl_berhenti,
+                                'nik' => $kary->nik ?? '-',
+                                'nama' => $kary->nama ?? '-',
+                                'kategori' => 'Status Karyawan',
+                                'unit' => $kary->unit_sekarang ?? '-',
+                                'jabatan' => $kary->jabatan_sekarang ?? '-',
+                                'tanggal' => Carbon::parse($kary->tgl_berhenti)->format('d-m-Y'),
+                                'deskripsi' => "Tanggal Berhenti / Resign / End of Contract",
+                                'keterangan_detail' => "Status non-aktif per tanggal berhenti",
+                                'status' => 'Tidak Aktif'
+                            ];
+                        }
+                    }
+                }
+            }
+
+            // Urutkan riwayat berdasarkan tanggal descending
+            usort($historyList, function($a, $b) {
+                return strcmp($b['tanggal_sort'], $a['tanggal_sort']);
+            });
+
+            return $this->helper->customResponse('OK', 200, $historyList);
+        } catch (\Exception $e) {
+            return $this->helper->responseCatch($e);
+        }
+    }
+
+    public function public_exportHistoryKaryawan()
+    {
+        try {
+            $req = request();
+            $start = null;
+            $end = null;
+            $filterDate = false;
+            $labelPeriod = 'Semua_Periode';
+
+            if ($req->tipe_periode === 'Rentang Tanggal' && $req->date_start && $req->date_end) {
+                $start = Carbon::parse($req->date_start)->format('Y-m-d');
+                $end = Carbon::parse($req->date_end)->format('Y-m-d');
+                $filterDate = true;
+                $labelPeriod = $start . '_sd_' . $end;
+            } elseif ($req->tipe_periode === 'Bulan' && ($req->month || $req->periode)) {
+                $month = $req->month ?? $req->periode;
+                $start = Carbon::parse($month . '-01')->startOfMonth()->format('Y-m-d');
+                $end = Carbon::parse($month . '-01')->endOfMonth()->format('Y-m-d');
+                $filterDate = true;
+                $labelPeriod = $month;
+            }
+
+            $kategori = $req->kategori ?? 'Semua';
+
+            $karyQuery = DB::table('m_kary as k')
+                ->leftJoin('m_dir as d', 'k.m_dir_id', '=', 'd.id')
+                ->leftJoin('m_divisi as div', 'k.m_divisi_id', '=', 'div.id')
+                ->select(
+                    'k.id',
+                    'k.kode as nik',
+                    'k.nama_lengkap as nama',
+                    'd.nama as unit_sekarang',
+                    'div.nama as jabatan_sekarang',
+                    'k.tgl_masuk',
+                    'k.tgl_berhenti',
+                    'k.is_active'
+                );
+
+            if ($req->m_dir_id) $karyQuery->where('k.m_dir_id', $req->m_dir_id);
+            if ($req->m_divisi_id) $karyQuery->where('k.m_divisi_id', $req->m_divisi_id);
+            if ($req->m_kary_id) {
+                if (is_array($req->m_kary_id)) {
+                    $karyQuery->whereIn('k.id', $req->m_kary_id);
+                } elseif (strpos($req->m_kary_id, ',') !== false) {
+                    $karyQuery->whereIn('k.id', explode(',', $req->m_kary_id));
+                } else {
+                    $karyQuery->where('k.id', $req->m_kary_id);
+                }
+            }
+            if ($req->is_active !== null && $req->is_active !== '' && $req->is_active !== 'Semua') {
+                $isActive = filter_var($req->is_active, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+                if ($isActive !== null) {
+                    $karyQuery->where('k.is_active', $isActive ? 'true' : 'false');
+                }
+            }
+
+            $karyawanList = $karyQuery->get()->keyBy('id');
+            $karyawanIds = $karyawanList->keys()->toArray();
+
+            $historyList = [];
+
+            if (!empty($karyawanIds)) {
+                // A. Mutasi & Kontrak
+                if ($kategori === 'Semua' || $kategori === 'Mutasi & Kontrak') {
+                    $kontrakQ = DB::table('m_kary_det_kontrak as kdk')
+                        ->leftJoin('m_dir as d', 'kdk.m_dir_id', '=', 'd.id')
+                        ->leftJoin('m_divisi as div', 'kdk.m_divisi_id', '=', 'div.id')
+                        ->leftJoin('m_general as gen', 'kdk.tipe_karyawan_id', '=', 'gen.id')
+                        ->whereIn('kdk.m_karyawan_id', $karyawanIds)
+                        ->select('kdk.m_karyawan_id', 'kdk.tgl_awal', 'kdk.tgl_akhir', 'kdk.duration', 'kdk.status', 'd.nama as unit', 'div.nama as jabatan', 'gen.value as tipe_karyawan');
+                    if ($filterDate) {
+                        $kontrakQ->where(function($q) use ($start, $end) {
+                            $q->whereBetween('kdk.tgl_awal', [$start, $end])->orWhereBetween('kdk.tgl_akhir', [$start, $end]);
+                        });
+                    }
+                    foreach ($kontrakQ->get() as $kd) {
+                        $kary = $karyawanList[$kd->m_karyawan_id] ?? null;
+                        if (!$kary) continue;
+                        $tglAwal = $kd->tgl_awal ? Carbon::parse($kd->tgl_awal)->format('d-m-Y') : '-';
+                        $tglAkhir = $kd->tgl_akhir ? Carbon::parse($kd->tgl_akhir)->format('d-m-Y') : '-';
+                        $historyList[] = [
+                            'tanggal_sort' => $kd->tgl_awal ?? '1970-01-01',
+                            'NIK' => $kary->nik ?? '-',
+                            'NAMA KARYAWAN' => $kary->nama ?? '-',
+                            'KATEGORI' => 'Mutasi & Kontrak',
+                            'UNIT' => $kd->unit ?? $kary->unit_sekarang ?? '-',
+                            'JABATAN' => $kd->jabatan ?? $kary->jabatan_sekarang ?? '-',
+                            'TANGGAL / PERIODE' => "{$tglAwal} s/d {$tglAkhir}",
+                            'RIWAYAT / PERUBAHAN' => "Kontrak / Penempatan {$kd->tipe_karyawan} ({$kd->duration} Bulan)",
+                            'KETERANGAN / DETAIL' => "Unit: " . ($kd->unit ?? '-') . " | Jabatan: " . ($kd->jabatan ?? '-'),
+                            'STATUS' => $kd->status ? 'Aktif' : 'Selesai'
+                        ];
+                    }
+
+                    $extendQ = DB::table('t_extend_kontrak as tek')
+                        ->leftJoin('m_dir as d', 'tek.m_dir_id', '=', 'd.id')
+                        ->leftJoin('m_divisi as div', 'tek.m_divisi_id', '=', 'div.id')
+                        ->leftJoin('m_general as gen', 'tek.tipe_karyawan_id', '=', 'gen.id')
+                        ->whereIn('tek.m_karyawan_id', $karyawanIds)
+                        ->select('tek.m_karyawan_id', 'tek.nomor', 'tek.tgl_awal', 'tek.tgl_akhir', 'tek.duration', 'tek.status', 'tek.catatan', 'd.nama as unit', 'div.nama as jabatan', 'gen.value as tipe_karyawan');
+                    if ($filterDate) {
+                        $extendQ->where(function($q) use ($start, $end) {
+                            $q->whereBetween('tek.tgl_awal', [$start, $end])->orWhereBetween('tek.tgl_akhir', [$start, $end]);
+                        });
+                    }
+                    foreach ($extendQ->get() as $ed) {
+                        $kary = $karyawanList[$ed->m_karyawan_id] ?? null;
+                        if (!$kary) continue;
+                        $tglAwal = $ed->tgl_awal ? Carbon::parse($ed->tgl_awal)->format('d-m-Y') : '-';
+                        $tglAkhir = $ed->tgl_akhir ? Carbon::parse($ed->tgl_akhir)->format('d-m-Y') : '-';
+                        $historyList[] = [
+                            'tanggal_sort' => $ed->tgl_awal ?? '1970-01-01',
+                            'NIK' => $kary->nik ?? '-',
+                            'NAMA KARYAWAN' => $kary->nama ?? '-',
+                            'KATEGORI' => 'Mutasi & Kontrak',
+                            'UNIT' => $ed->unit ?? $kary->unit_sekarang ?? '-',
+                            'JABATAN' => $ed->jabatan ?? $kary->jabatan_sekarang ?? '-',
+                            'TANGGAL / PERIODE' => "{$tglAwal} s/d {$tglAkhir}",
+                            'RIWAYAT / PERUBAHAN' => "Perpanjangan Kontrak: " . ($ed->nomor ?? '-') . " ({$ed->duration} Bulan)",
+                            'KETERANGAN / DETAIL' => ($ed->catatan ? $ed->catatan . " | " : "") . "Tipe: " . ($ed->tipe_karyawan ?? '-'),
+                            'STATUS' => $ed->status ?? 'APPROVED'
+                        ];
+                    }
+                }
+
+                // B. Riwayat Gaji
+                if ($kategori === 'Semua' || $kategori === 'Riwayat Gaji') {
+                    $gajiQ = DB::table('t_final_gaji_det as fgd')
+                        ->leftJoin('t_final_gaji as fg', 'fgd.t_final_gaji_id', '=', 'fg.id')
+                        ->whereIn('fgd.m_kary_id', $karyawanIds)
+                        ->select(
+                            'fgd.m_kary_id',
+                            'fgd.periode',
+                            'fgd.periode_in_date',
+                            'fg.periode_awal',
+                            'fg.periode_akhir',
+                            'fg.status as status_gaji',
+                            'fgd.status as status_gaji_det',
+                            'fgd.netto',
+                            'fgd.total_gaji',
+                            'fgd.total_tax'
+                        );
+
+                    if ($filterDate) {
+                        $gajiQ->where(function($q) use ($start, $end) {
+                            $q->whereBetween('fgd.periode_in_date', [$start, $end])
+                              ->orWhere(function($sub) use ($start, $end) {
+                                  $sub->whereNotNull('fgd.periode')
+                                      ->whereBetween('fgd.periode', [$start, $end]);
+                              })
+                              ->orWhereBetween('fg.periode_awal', [$start, $end])
+                              ->orWhereBetween('fg.periode_akhir', [$start, $end]);
+                        });
+                    }
+                    foreach ($gajiQ->orderBy('fgd.periode_in_date', 'desc')->get() as $gd) {
+                        $kary = $karyawanList[$gd->m_kary_id] ?? null;
+                        if (!$kary) continue;
+                        $sortDate = $gd->periode_in_date ?? $gd->periode_awal ?? ($gd->periode ? $gd->periode . '-01' : '1970-01-01');
+                        $periodeLabel = '-';
+                        if ($gd->periode_in_date) {
+                            $periodeLabel = Carbon::parse($gd->periode_in_date)->translatedFormat('F Y');
+                        } elseif ($gd->periode) {
+                            $periodeLabel = is_numeric(substr($gd->periode, 0, 4)) ? Carbon::parse($gd->periode . '-01')->translatedFormat('F Y') : $gd->periode;
+                        } elseif ($gd->periode_awal) {
+                            $periodeLabel = Carbon::parse($gd->periode_awal)->format('d-m-Y') . ' s/d ' . Carbon::parse($gd->periode_akhir)->format('d-m-Y');
+                        }
+                        $nettoFormatted = number_format($gd->netto ?? 0, 0, ',', '.');
+                        $brutoFormatted = number_format($gd->total_gaji ?? 0, 0, ',', '.');
+                        $taxFormatted = number_format($gd->total_tax ?? 0, 0, ',', '.');
+                        $historyList[] = [
+                            'tanggal_sort' => $sortDate,
+                            'NIK' => $kary->nik ?? '-',
+                            'NAMA KARYAWAN' => $kary->nama ?? '-',
+                            'KATEGORI' => 'Riwayat Gaji',
+                            'UNIT' => $kary->unit_sekarang ?? '-',
+                            'JABATAN' => $kary->jabatan_sekarang ?? '-',
+                            'TANGGAL / PERIODE' => $periodeLabel,
+                            'RIWAYAT / PERUBAHAN' => "Penggajian Periode " . $periodeLabel,
+                            'KETERANGAN / DETAIL' => "Bruto: Rp {$brutoFormatted} | PPh: Rp {$taxFormatted} | Netto (THP): Rp {$nettoFormatted}",
+                            'STATUS' => $gd->status_gaji ?? $gd->status_gaji_det ?? 'POSTED'
+                        ];
+                    }
+                }
+
+                // C. Surat & Disiplin
+                if ($kategori === 'Semua' || $kategori === 'Surat & Disiplin') {
+                    $suratQ = DB::table('t_surat as s')
+                        ->whereIn('s.m_karyawan_id', $karyawanIds)
+                        ->select('s.m_karyawan_id', 's.jenis_surat', 's.level_surat', 's.tanggal_terbit', 's.alasan', 's.is_signed');
+                    if ($filterDate) {
+                        $suratQ->whereBetween('s.tanggal_terbit', [$start, $end]);
+                    }
+                    foreach ($suratQ->get() as $sd) {
+                        $kary = $karyawanList[$sd->m_karyawan_id] ?? null;
+                        if (!$kary) continue;
+                        $tglTerbit = $sd->tanggal_terbit ? Carbon::parse($sd->tanggal_terbit)->format('d-m-Y') : '-';
+                        $historyList[] = [
+                            'tanggal_sort' => $sd->tanggal_terbit ?? '1970-01-01',
+                            'NIK' => $kary->nik ?? '-',
+                            'NAMA KARYAWAN' => $kary->nama ?? '-',
+                            'KATEGORI' => 'Surat & Disiplin',
+                            'UNIT' => $kary->unit_sekarang ?? '-',
+                            'JABATAN' => $kary->jabatan_sekarang ?? '-',
+                            'TANGGAL / PERIODE' => $tglTerbit,
+                            'RIWAYAT / PERUBAHAN' => "Surat: {$sd->jenis_surat} " . ($sd->level_surat ? "({$sd->level_surat})" : ""),
+                            'KETERANGAN / DETAIL' => $sd->alasan ?? 'Penerbitan surat resmi',
+                            'STATUS' => $sd->is_signed ? 'Ditandatangani' : 'Terbit'
+                        ];
+                    }
+                }
+            }
+
+            usort($historyList, function($a, $b) {
+                return strcmp($b['tanggal_sort'], $a['tanggal_sort']);
+            });
+
+            // Hilangkan field sorting sebelum render excel
+            $exportRows = array_map(function($item) {
+                unset($item['tanggal_sort']);
+                return $item;
+            }, $historyList);
+
+            $export = new class(collect($exportRows)) implements FromCollection, WithHeadings {
+                protected $data;
+                public function __construct($data) { $this->data = $data; }
+                public function collection() { return $this->data; }
+                public function headings(): array
+                {
+                    return [
+                        'NIK', 'NAMA KARYAWAN', 'KATEGORI', 'UNIT', 'JABATAN',
+                        'TANGGAL / PERIODE', 'RIWAYAT / PERUBAHAN', 'KETERANGAN / DETAIL', 'STATUS'
+                    ];
+                }
+            };
+
+            return Excel::download($export, "laporan_history_karyawan_{$labelPeriod}.xlsx");
+        } catch (\Exception $e) {
+            return response()->json(['error' => $e->getMessage()], 500);
+        }
+    }
 }
