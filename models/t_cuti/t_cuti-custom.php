@@ -530,4 +530,270 @@ class t_cuti extends \App\Models\BasicModels\t_cuti
             ], 500);
         }
     }
+
+    public function custom_laporan_dispensasi($req)
+    {
+        try {
+            $start = null;
+            $end = null;
+
+            // Flexible Period handling: Date Range or Month
+            if ($req->date_start && $req->date_end) {
+                $start = Carbon::parse($req->date_start)->format('Y-m-d');
+                $end = Carbon::parse($req->date_end)->format('Y-m-d');
+            } elseif ($req->date_start) {
+                $start = Carbon::parse($req->date_start)->format('Y-m-d');
+                $end = Carbon::parse($req->date_start)->format('Y-m-d');
+            } else {
+                $month = $req->month ?? $req->periode ?? Carbon::now()->format('Y-m');
+                $start = Carbon::parse($month . '-01')->startOfMonth()->format('Y-m-d');
+                $end = Carbon::parse($month . '-01')->endOfMonth()->format('Y-m-d');
+            }
+
+            $query = t_cuti::with([
+                'm_kary.m_divisi',
+                'm_dir',
+                'alasan' => function ($q) { $q->select('id', 'value'); },
+                'creator' => function ($q) { $q->select('id', 'name'); },
+            ])
+            ->where(function ($q) use ($start, $end) {
+                $q->whereBetween('date_from', [$start, $end])
+                  ->orWhereBetween('date_to', [$start, $end])
+                  ->orWhere(function ($sub) use ($start, $end) {
+                      $sub->where('date_from', '<=', $start)
+                          ->where('date_to', '>=', $end);
+                  });
+            })
+            ->whereHas('alasan', function ($q) {
+                $q->whereRaw('LOWER(value) LIKE ?', ['%dispensasi%']);
+            });
+
+            if ($req->m_dir_id) {
+                $query->where('m_dir_id', $req->m_dir_id);
+            }
+            if ($req->m_divisi_id) {
+                $query->whereHas('m_kary', function ($kQ) use ($req) {
+                    $kQ->where('m_divisi_id', $req->m_divisi_id);
+                });
+            }
+            if ($req->m_kary_id) {
+                if (is_array($req->m_kary_id)) {
+                    $query->whereIn('m_kary_id', $req->m_kary_id);
+                } elseif (strpos($req->m_kary_id, ',') !== false) {
+                    $query->whereIn('m_kary_id', explode(',', $req->m_kary_id));
+                } else {
+                    $query->where('m_kary_id', $req->m_kary_id);
+                }
+            }
+            if ($req->status && $req->status !== 'Semua') {
+                $query->where('status', $req->status);
+            }
+
+            // Filter jenis dispensasi (in, out, in & out)
+            if ($req->jenis_dispensasi && $req->jenis_dispensasi !== 'Semua') {
+                if ($req->jenis_dispensasi === 'Lupa In') {
+                    $query->whereNotNull('time_from')->whereNull('time_to');
+                } elseif ($req->jenis_dispensasi === 'Lupa Out') {
+                    $query->whereNull('time_from')->whereNotNull('time_to');
+                } elseif ($req->jenis_dispensasi === 'Lupa In & Out') {
+                    $query->whereNotNull('time_from')->whereNotNull('time_to');
+                }
+            }
+
+            $data = $query->orderBy('date_from', 'desc')->get();
+
+            // Ambil log approval note jika ada
+            $trxIds = $data->pluck('id')->toArray();
+            $approvalLogs = [];
+            if (!empty($trxIds)) {
+                $logs = \DB::table('generate_approval_log')
+                    ->where('trx_table', 't_cuti')
+                    ->whereIn('trx_id', $trxIds)
+                    ->orderBy('created_at', 'desc')
+                    ->get();
+                foreach ($logs as $l) {
+                    if (!isset($approvalLogs[$l->trx_id])) {
+                        $approvalLogs[$l->trx_id] = $l->action_note ?? $l->note ?? '-';
+                    }
+                }
+            }
+
+            $rows = $data->map(function ($cuti) use ($approvalLogs) {
+                $jenis = 'Lupa Absen';
+                if ($cuti->time_from && $cuti->time_to) {
+                    $jenis = 'Lupa In & Out';
+                } elseif ($cuti->time_from) {
+                    $jenis = 'Lupa In';
+                } elseif ($cuti->time_to) {
+                    $jenis = 'Lupa Out';
+                }
+
+                $tgl = Carbon::parse($cuti->date_from)->format('d-m-Y');
+                if ($cuti->date_to && $cuti->date_to !== $cuti->date_from) {
+                    $tgl .= ' s/d ' . Carbon::parse($cuti->date_to)->format('d-m-Y');
+                }
+
+                return [
+                    'id' => $cuti->id,
+                    'nomor' => $cuti->nomor ?? '-',
+                    'nik' => $cuti->m_kary?->kode ?? '-',
+                    'nama' => $cuti->m_kary?->nama_lengkap ?? '-',
+                    'unit' => $cuti->m_dir?->nama ?? $cuti->m_kary?->m_dir?->nama ?? '-',
+                    'jabatan' => $cuti->m_kary?->m_divisi?->nama ?? '-',
+                    'tanggal' => $tgl,
+                    'time_from' => $cuti->time_from ? substr($cuti->time_from, 0, 5) : '-',
+                    'time_to' => $cuti->time_to ? substr($cuti->time_to, 0, 5) : '-',
+                    'jenis_dispensasi' => $jenis,
+                    'keterangan' => $cuti->keterangan ?? '-',
+                    'status' => $cuti->status ?? 'DRAFT',
+                    'catatan_approval' => $approvalLogs[$cuti->id] ?? '-',
+                    'dibuat_pada' => $cuti->created_at ? Carbon::parse($cuti->created_at)->format('d-m-Y H:i') : '-'
+                ];
+            });
+
+            return $this->helper->customResponse('OK', 200, $rows);
+        } catch (\Exception $e) {
+            return $this->helper->responseCatch($e);
+        }
+    }
+
+    public function public_exportDispensasi()
+    {
+        try {
+            $req = request();
+            $start = null;
+            $end = null;
+
+            if ($req->date_start && $req->date_end) {
+                $start = Carbon::parse($req->date_start)->format('Y-m-d');
+                $end = Carbon::parse($req->date_end)->format('Y-m-d');
+                $filenamePeriod = $start . '_sd_' . $end;
+            } elseif ($req->date_start) {
+                $start = Carbon::parse($req->date_start)->format('Y-m-d');
+                $end = Carbon::parse($req->date_start)->format('Y-m-d');
+                $filenamePeriod = $start;
+            } else {
+                $month = $req->month ?? $req->periode ?? Carbon::now()->format('Y-m');
+                $start = Carbon::parse($month . '-01')->startOfMonth()->format('Y-m-d');
+                $end = Carbon::parse($month . '-01')->endOfMonth()->format('Y-m-d');
+                $filenamePeriod = $month;
+            }
+
+            $query = t_cuti::with([
+                'm_kary.m_divisi',
+                'm_dir',
+                'alasan' => function ($q) { $q->select('id', 'value'); },
+                'creator' => function ($q) { $q->select('id', 'name'); },
+            ])
+            ->where(function ($q) use ($start, $end) {
+                $q->whereBetween('date_from', [$start, $end])
+                  ->orWhereBetween('date_to', [$start, $end])
+                  ->orWhere(function ($sub) use ($start, $end) {
+                      $sub->where('date_from', '<=', $start)
+                          ->where('date_to', '>=', $end);
+                  });
+            })
+            ->whereHas('alasan', function ($q) {
+                $q->whereRaw('LOWER(value) LIKE ?', ['%dispensasi%']);
+            });
+
+            if ($req->m_dir_id) {
+                $query->where('m_dir_id', $req->m_dir_id);
+            }
+            if ($req->m_divisi_id) {
+                $query->whereHas('m_kary', function ($kQ) use ($req) {
+                    $kQ->where('m_divisi_id', $req->m_divisi_id);
+                });
+            }
+            if ($req->m_kary_id) {
+                if (is_array($req->m_kary_id)) {
+                    $query->whereIn('m_kary_id', $req->m_kary_id);
+                } elseif (strpos($req->m_kary_id, ',') !== false) {
+                    $query->whereIn('m_kary_id', explode(',', $req->m_kary_id));
+                } else {
+                    $query->where('m_kary_id', $req->m_kary_id);
+                }
+            }
+            if ($req->status && $req->status !== 'Semua') {
+                $query->where('status', $req->status);
+            }
+
+            if ($req->jenis_dispensasi && $req->jenis_dispensasi !== 'Semua') {
+                if ($req->jenis_dispensasi === 'Lupa In') {
+                    $query->whereNotNull('time_from')->whereNull('time_to');
+                } elseif ($req->jenis_dispensasi === 'Lupa Out') {
+                    $query->whereNull('time_from')->whereNotNull('time_to');
+                } elseif ($req->jenis_dispensasi === 'Lupa In & Out') {
+                    $query->whereNotNull('time_from')->whereNotNull('time_to');
+                }
+            }
+
+            $data = $query->orderBy('date_from', 'desc')->get();
+
+            $trxIds = $data->pluck('id')->toArray();
+            $approvalLogs = [];
+            if (!empty($trxIds)) {
+                $logs = \DB::table('generate_approval_log')
+                    ->where('trx_table', 't_cuti')
+                    ->whereIn('trx_id', $trxIds)
+                    ->orderBy('created_at', 'desc')
+                    ->get();
+                foreach ($logs as $l) {
+                    if (!isset($approvalLogs[$l->trx_id])) {
+                        $approvalLogs[$l->trx_id] = $l->action_note ?? $l->note ?? '-';
+                    }
+                }
+            }
+
+            $rows = $data->map(function ($cuti) use ($approvalLogs) {
+                $jenis = 'Lupa Absen';
+                if ($cuti->time_from && $cuti->time_to) {
+                    $jenis = 'Lupa In & Out';
+                } elseif ($cuti->time_from) {
+                    $jenis = 'Lupa In';
+                } elseif ($cuti->time_to) {
+                    $jenis = 'Lupa Out';
+                }
+
+                $tgl = Carbon::parse($cuti->date_from)->format('d-m-Y');
+                if ($cuti->date_to && $cuti->date_to !== $cuti->date_from) {
+                    $tgl .= ' s/d ' . Carbon::parse($cuti->date_to)->format('d-m-Y');
+                }
+
+                return [
+                    'NOMOR' => $cuti->nomor ?? '-',
+                    'NIK' => $cuti->m_kary?->kode ?? '-',
+                    'NAMA KARYAWAN' => $cuti->m_kary?->nama_lengkap ?? '-',
+                    'UNIT' => $cuti->m_dir?->nama ?? $cuti->m_kary?->m_dir?->nama ?? '-',
+                    'JABATAN' => $cuti->m_kary?->m_divisi?->nama ?? '-',
+                    'TANGGAL' => $tgl,
+                    'JAM IN' => $cuti->time_from ? substr($cuti->time_from, 0, 5) : '-',
+                    'JAM OUT' => $cuti->time_to ? substr($cuti->time_to, 0, 5) : '-',
+                    'JENIS DISPENSASI' => $jenis,
+                    'KETERANGAN' => $cuti->keterangan ?? '-',
+                    'STATUS' => $cuti->status ?? 'DRAFT',
+                    'CATATAN APPROVAL' => $approvalLogs[$cuti->id] ?? '-',
+                    'DIBUAT PADA' => $cuti->created_at ? Carbon::parse($cuti->created_at)->format('d-m-Y H:i') : '-'
+                ];
+            });
+
+            $export = new class($rows) implements FromCollection, WithHeadings {
+                protected $data;
+                public function __construct($data) { $this->data = $data; }
+                public function collection() { return $this->data; }
+                public function headings(): array
+                {
+                    return [
+                        'NOMOR', 'NIK', 'NAMA KARYAWAN', 'UNIT', 'JABATAN',
+                        'TANGGAL', 'JAM IN', 'JAM OUT', 'JENIS DISPENSASI',
+                        'KETERANGAN', 'STATUS', 'CATATAN APPROVAL', 'DIBUAT PADA'
+                    ];
+                }
+            };
+
+            return Excel::download($export, "laporan_dispensasi_{$filenamePeriod}.xlsx");
+        } catch (\Exception $e) {
+            return response()->json(['error' => $e->getMessage()], 500);
+        }
+    }
 }
