@@ -635,6 +635,7 @@ class t_perhitungan_gaji extends \App\Models\BasicModels\t_perhitungan_gaji
                 // ->leftJoin('m_dept','m_dept.id','m_kary.m_divisi_id')
                 ->join('m_general', 'm_general.id', 'm_kary.periode_gaji_id')
                 ->join('m_kary_det_kontrak as dk', 'dk.m_karyawan_id', 'm_kary.id')
+                ->where('dk.status', true)
                 ->whereDate('dk.tgl_awal', '<=', $date_to)
                 ->whereRaw('m_kary.m_standart_gaji_id in(select s.id from m_standart_gaji s where s.is_active = true)')
             ;

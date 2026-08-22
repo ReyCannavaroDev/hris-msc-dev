@@ -1176,7 +1176,7 @@
           :disabled="!actionText && !isProfile ? true : false"
           @click="addKontrak"
           type="button"
-          class="mr-[15px] mb-3 bg-[#005FBF] hover:bg-[#0055ab] text-white py-[9px] px-[19.5px] flex items-center justify-center space-x-2 rounded"
+          :class="isKontrakFormInvalid ? 'mr-[15px] mb-3 bg-gray-400 opacity-50 cursor-not-allowed text-white py-[9px] px-[19.5px] flex items-center justify-center space-x-2 rounded' : 'mr-[15px] mb-3 bg-[#005FBF] hover:bg-[#0055ab] text-white py-[9px] px-[19.5px] flex items-center justify-center space-x-2 rounded'"
         >
           <icon fa="plus" /> <span>Add to List</span>
         </button>

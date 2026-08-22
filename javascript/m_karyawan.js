@@ -1,5 +1,5 @@
 import { useRouter, useRoute, RouterLink } from 'vue-router'
-import { ref, readonly, reactive, inject, onMounted, onBeforeMount, watch, watchEffect, onActivated } from 'vue'
+import { ref, readonly, reactive, inject, onMounted, onBeforeMount, watch, watchEffect, onActivated, computed } from 'vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -98,7 +98,18 @@ const valuesKontrak = reactive({
   tipe_karyawan_id: null,
   status: null,
   tgl_awal: null,
-  tgl_akhir: null
+  tgl_akhir: null,
+  duration: null
+})
+
+const isKontrakFormInvalid = computed(() => {
+  return !valuesKontrak.m_dir_id ||
+         !valuesKontrak.m_divisi_id ||
+         !valuesKontrak.tipe_karyawan_id ||
+         valuesKontrak.status === null || valuesKontrak.status === undefined ||
+         !valuesKontrak.tgl_awal ||
+         !valuesKontrak.tgl_akhir ||
+         !valuesKontrak.duration;
 })
 
 const valuesKeluarga = reactive({
@@ -794,17 +805,16 @@ const detailKont = ref([])
 
 
 const addKontrak = async () => {
-  let tempObj = {}
-  valuesKontrak._id = ++_idKel
-
-  if (Object.keys(tempObj).length >= 1) {
-    formErrorsKont.value = tempObj
+  if (isKontrakFormInvalid.value) {
     swal.fire({
-      icon: 'error',
-      text: 'Masih ada field yang belum terisi'
+      icon: 'warning',
+      text: 'lengkapi semua syarat kontrak anda'
     })
     return
   }
+
+  let tempObj = {}
+  valuesKontrak._id = ++_idKel
 
   detailKont.value = detailKont.value.map(item => ({
     ...item,

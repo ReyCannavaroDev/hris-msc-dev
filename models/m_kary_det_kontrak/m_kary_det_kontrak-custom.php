@@ -37,6 +37,33 @@ class m_kary_det_kontrak extends \App\Models\BasicModels\m_kary_det_kontrak
         ];
     }
 
+    public function createAfter($model, $arrayData, $metaData, $id = null)
+    {
+        $exists = \App\Models\BasicModels\t_extend_kontrak::where('nomor', $model->nomor)->exists();
+
+        if (!$exists) {
+            $prevContract = \App\Models\BasicModels\m_kary_det_kontrak::where('m_karyawan_id', $model->m_karyawan_id)
+                ->where('id', '!=', $model->id)
+                ->orderBy('id', 'desc')
+                ->first();
+
+            $ext = new \App\Models\BasicModels\t_extend_kontrak();
+            $ext->nomor = $model->nomor;
+            $ext->m_karyawan_id = $model->m_karyawan_id;
+            $ext->m_divisi_id = $model->m_divisi_id;
+            $ext->m_dir_id = $model->m_dir_id;
+            $ext->tipe_karyawan_id = $model->tipe_karyawan_id;
+            $ext->tgl_awal = $model->tgl_awal;
+            $ext->tgl_akhir = $model->tgl_akhir;
+            $ext->duration = $model->duration;
+            $ext->contract_signed = $model->contract;
+            $ext->status = 'COMPLETED';
+            $ext->m_kary_det_kontrak_id = $prevContract ? $prevContract->id : null;
+            $ext->catatan = 'Diinput langsung via Data Karyawan';
+            $ext->save();
+        }
+    }
+
     public function t_extend_kontrak() :\HasMany
     {
         return $this->HasMany('App\Models\BasicModels\t_extend_kontrak', 'm_kary_det_kontrak_id', 'id');
