@@ -2363,4 +2363,231 @@ class presensi_absensi extends \App\Models\BasicModels\presensi_absensi
       }
   }
 
+    public function public_exportTidakHadir()
+    {
+        try {
+            $req = request();
+            $tipe_periode = $req->tipe_periode; 
+            
+            if ($tipe_periode == 'Bulan') {
+                $monthStr = $req->month; 
+                $date_start = Carbon::parse($monthStr . '-01')->format('Y-m-d');
+                $date_end   = Carbon::parse($date_start)->endOfMonth()->format('Y-m-d');
+            } else {
+                $date_start = Carbon::parse($req->date_start)->format('Y-m-d');
+                $date_end   = Carbon::parse($req->date_end)->format('Y-m-d');
+            }
+
+            $karyQuery = m_kary::with(['m_dir', 'm_divisi']);
+
+            if ($req->filled('m_kary_id')) {
+                $ids = array_map('intval', explode(',', $req->m_kary_id));
+                $karyQuery->whereIn('id', $ids);
+            } else {
+                if ($req->filled('m_divisi_id')) $karyQuery->where('m_divisi_id', $req->m_divisi_id);
+                if ($req->filled('m_dir_id')) $karyQuery->where('m_dir_id', $req->m_dir_id);
+            }
+
+            if ($req->filled('is_active')) {
+                $isActive = filter_var($req->is_active, FILTER_VALIDATE_BOOLEAN);
+                $karyQuery->where('is_active', $isActive);
+            }
+
+            $karyawans = $karyQuery->get();
+            $karyawanIds = $karyawans->pluck('id')->toArray();
+
+            if (empty($karyawanIds)) {
+                throw new \Exception("Tidak ada data karyawan yang sesuai dengan filter.");
+            }
+
+            // Jembatani Relasi: m_kary -> default_users -> presensi_absensi
+            $users = DB::table('default_users')->whereIn('m_kary_id', $karyawanIds)->get();
+            $karyToUserMap = $users->pluck('id', 'm_kary_id')->toArray();
+            $userIds = array_values($karyToUserMap);
+
+            $absensi = DB::table('presensi_absensi')
+                ->whereIn('default_user_id', $userIds)
+                ->whereBetween('tanggal', [$date_start, $date_end])
+                ->get()
+                ->groupBy('default_user_id');
+
+            // Tarik Semua Cuti HANYA YANG APPROVED, serta panggil relasi 'alasan' ke m_general
+            $cutiList = t_cuti::with('alasan')
+                ->whereIn('m_kary_id', $karyawanIds)
+                ->where('date_from', '<=', $date_end)
+                ->where('date_to', '>=', $date_start)
+                ->where('status', 'APPROVED')
+                ->get()
+                ->groupBy('m_kary_id');
+
+            $rows = [];
+            $dates = [];
+            $jumlahHariKerja = 0;
+            
+            $period = CarbonPeriod::create($date_start, $date_end);
+            foreach ($period as $date) {
+                if ($date->isWeekday()) {
+                    $jumlahHariKerja++;
+                    $dates[] = clone $date;
+                }
+            }
+
+            foreach ($karyawans as $kary) {
+                $defUserId = $karyToUserMap[$kary->id] ?? null;
+                $absenKary = ($defUserId && isset($absensi[$defUserId])) ? $absensi[$defUserId]->keyBy('tanggal') : collect();
+                $cutiKary = isset($cutiList[$kary->id]) ? $cutiList[$kary->id] : collect();
+
+                $totalIzin = 0;
+                $totalAlpha = 0;
+                $rekapJenisIzin = []; 
+
+                foreach ($dates as $dt) {
+                    $tanggalStr = $dt->format('Y-m-d');
+                    
+                    // Cek Cuti
+                    $isCuti = false;
+                    $jenisCuti = '-';
+                    foreach ($cutiKary as $c) {
+                        $cFrom = Carbon::parse($c->date_from)->format('Y-m-d');
+                        $cTo = Carbon::parse($c->date_to)->format('Y-m-d');
+                        
+                        if ($tanggalStr >= $cFrom && $tanggalStr <= $cTo) {
+                            $isCuti = true;
+                            // Ambil dari kolom 'value' di tabel m_general melalui relasi alasan
+                            $jenisCuti = $c->alasan?->value ?? 'Izin'; 
+                            break;
+                        }
+                    }
+
+                    // Cek Kehadiran
+                    $isHadir = false;
+                    if ($absenKary->has($tanggalStr)) {
+                        $absenHariIni = $absenKary->get($tanggalStr);
+                        if (strtoupper($absenHariIni->status) !== 'TIDAK HADIR') {
+                            $isHadir = true; 
+                        }
+                    }
+
+                    // Logika Penentuan Keterangan
+                    if ($isCuti) {
+                        $totalIzin++;
+                        $rekapJenisIzin[$jenisCuti] = ($rekapJenisIzin[$jenisCuti] ?? 0) + 1;
+
+                        if ($tipe_periode == 'Rentang Tanggal') {
+                            $rows[] = [
+                                'ID KARYAWAN' => $kary->kode ?? '-',
+                                'NAMA KARYAWAN' => $kary->nama_lengkap ?? '',
+                                'UNIT' => $kary->m_dir->nama ?? '-',
+                                'JABATAN' => $kary->m_divisi->nama ?? '-',
+                                'TANGGAL' => $dt->format('d/m/Y'),
+                                'HARI' => $dt->locale('id')->isoFormat('dddd'),
+                                'KETERANGAN' => $jenisCuti, // Tampil misal: "Sakit", "Cuti Tahunan"
+                                'IS_ALPHA' => false 
+                            ];
+                        }
+                    } else if (!$isHadir) {
+                        $totalAlpha++;
+                        if ($tipe_periode == 'Rentang Tanggal') {
+                            $rows[] = [
+                                'ID KARYAWAN' => $kary->kode ?? '-',
+                                'NAMA KARYAWAN' => $kary->nama_lengkap ?? '',
+                                'UNIT' => $kary->m_dir->nama ?? '-',
+                                'JABATAN' => $kary->m_divisi->nama ?? '-',
+                                'TANGGAL' => $dt->format('d/m/Y'),
+                                'HARI' => $dt->locale('id')->isoFormat('dddd'),
+                                'KETERANGAN' => '-', // Tampil strip karena Alpha
+                                'IS_ALPHA' => true
+                            ];
+                        }
+                    }
+                }
+
+                // Logika Pembuatan Ringkasan (Bulan)
+                if ($tipe_periode == 'Bulan') {
+                    $totalTidakHadir = $totalIzin + $totalAlpha;
+                    
+                    if ($totalTidakHadir > 0) {
+                        $arrRingkasan = [];
+                        if ($totalAlpha > 0) {
+                            $arrRingkasan[] = "Alpha: $totalAlpha";
+                        }
+                        foreach ($rekapJenisIzin as $jenis => $jumlah) {
+                            $arrRingkasan[] = "$jenis: $jumlah";
+                        }
+                        
+                        $teksRingkasan = implode(', ', $arrRingkasan);
+
+                        $rows[] = [
+                            'ID KARYAWAN' => $kary->kode ?? '-',
+                            'NAMA KARYAWAN' => $kary->nama_lengkap ?? '',
+                            'UNIT' => $kary->m_dir->nama ?? '-',
+                            'JABATAN' => $kary->m_divisi->nama ?? '-',
+                            'PERIODE' => Carbon::parse($date_start)->locale('id')->isoFormat('MMMM YYYY'),
+                            'HARI KERJA' => $jumlahHariKerja,
+                            'TOTAL TIDAK HADIR' => $totalTidakHadir,
+                            'TOTAL IZIN' => $totalIzin,
+                            'TOTAL ALPHA' => $totalAlpha,
+                            'RINGKASAN' => $teksRingkasan, 
+                            'IS_ALPHA' => ($totalAlpha > 0) 
+                        ];
+                    }
+                }
+            }
+
+            // Class Export Excel
+            $export = new class(collect($rows), $tipe_periode) implements \Maatwebsite\Excel\Concerns\FromCollection, \Maatwebsite\Excel\Concerns\WithHeadings, \Maatwebsite\Excel\Concerns\WithStyles {
+                protected $data;
+                protected $tipe;
+                
+                public function __construct($data, $tipe) { 
+                    $this->data = $data; 
+                    $this->tipe = $tipe;
+                }
+                
+                public function collection() { 
+                    return $this->data->map(function($item) {
+                        unset($item['IS_ALPHA']); 
+                        return $item;
+                    });
+                }
+                
+                public function headings(): array {
+                    if ($this->tipe == 'Rentang Tanggal') {
+                        return ['ID KARYAWAN', 'NAMA KARYAWAN', 'UNIT', 'JABATAN', 'TANGGAL', 'HARI', 'KETERANGAN (IZIN/ALPHA)'];
+                    } else {
+                        return ['ID KARYAWAN', 'NAMA KARYAWAN', 'UNIT', 'JABATAN', 'PERIODE', 'JUMLAH HARI KERJA', 'TOTAL TIDAK HADIR', 'TOTAL IZIN', 'TOTAL ALPHA', 'KETERANGAN (RINGKASAN)'];
+                    }
+                }
+                
+                public function styles(\PhpOffice\PhpSpreadsheet\Worksheet\Worksheet $sheet) {
+                    $highestColumn = $sheet->getHighestColumn();
+                    $sheet->getStyle('A1:' . $highestColumn . '1')->getFont()->setBold(true);
+                    
+                    foreach ($this->data as $index => $row) {
+                        $rowIndex = $index + 2;
+                        if ($row['IS_ALPHA']) {
+                            $sheet->getStyle('A' . $rowIndex . ':' . $highestColumn . $rowIndex)->applyFromArray([
+                                'font' => ['color' => ['argb' => 'FFFF0000']],
+                                'fill' => [
+                                    'fillType' => \PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID,
+                                    'startColor' => ['argb' => 'FFFFEBEB'],
+                                ],
+                            ]);
+                        }
+                    }
+                    return [];
+                }
+            };
+
+            $fileNameLabel = $tipe_periode === 'Bulan' 
+                ? Carbon::parse($date_start)->format('Y-m') 
+                : "{$date_start}_sd_{$date_end}";
+
+            return \Maatwebsite\Excel\Facades\Excel::download($export, "laporan_tidak_hadir_{$fileNameLabel}.xlsx");
+
+        } catch (\Exception $e) {
+            return response()->json(['error' => $e->getMessage()], 500);
+        }
+    }
+
 }
