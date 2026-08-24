@@ -2036,12 +2036,12 @@ public function salaryOfKary($id, $periode_awal, $periode_akhir)
                     <body>
                         <div class="no-print-bar">
                             <div>
-                                <span style="font-weight:700; font-size:14px; letter-spacing:0.3px;">📄 Pratinjau Dokumen PDF — Laporan Statistik Penggajian</span>
+                                <span style="font-weight:700; font-size:14px; letter-spacing:0.3px;">Pratinjau Dokumen PDF — Laporan Statistik Penggajian</span>
                                 <span style="font-size:11px; color:#94a3b8; margin-left:10px;">(Format: A4 Landscape)</span>
                             </div>
                             <div>
-                                <button class="btn-print" onclick="window.print()">🖨️ Cetak / Simpan PDF</button>
-                                <button class="btn-close" onclick="window.close()">✕ Tutup</button>
+                                <button class="btn-print" onclick="window.print()">Cetak / Simpan PDF</button>
+                                <button class="btn-close" onclick="window.close()">Tutup</button>
                             </div>
                         </div>
                         <div class="report-paper">
