@@ -293,7 +293,9 @@ if (!empty($rekap['detail_menit_terlambat'])) {
                     $label = $komponen->komponen;
                     $factor = $komponen->faktor ?? '-';
                   } elseif ($nominalTerlambat_raw->exists()) {
-                  $nominalRules = $nominalTerlambat_raw->orderBy('value', 'asc')->get();
+                  $nominalRules = $nominalTerlambat_raw->get()->sortBy(function($item) {
+                    return (int) $item->value;
+                  })->values();
 
                   $rule = $nominalRules->first(function ($item) use ($minutes) {
                     return $minutes <= (int) $item->value;
