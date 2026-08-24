@@ -1859,8 +1859,9 @@ public function salaryOfKary($id, $periode_awal, $periode_akhir)
                 ];
             }
 
-            // Jika Request HTML View
-            if ($req->export === 'html' || strtolower($req->tipe ?? '') === 'html') {
+            // Jika Request HTML View atau PDF Document
+            $exportType = strtolower($req->export ?: ($req->tipe ?: 'html'));
+            if (in_array($exportType, ['html', 'pdf'])) {
                 $html = '<div class="statistik-container p-4" style="background:#f8fafc; font-family:Inter, sans-serif;">';
                 
                 // HEADER BANNER
