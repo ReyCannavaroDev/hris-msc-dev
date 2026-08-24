@@ -58,17 +58,25 @@
         tempGet.push(`export=pdf`)
       }
     }
+    const parseDateStr = (str) => {
+      if (!str) return '';
+      const parts = str.split(/[-\/]/);
+      if (parts.length === 3) {
+        if (parts[0].length === 4) {
+          // format: YYYY-MM-DD
+          return `${parts[0]}-${parts[1]}-${parts[2]}`;
+        }
+        // format: DD/MM/YYYY
+        return `${parts[2]}-${parts[1]}-${parts[0]}`;
+      }
+      return str;
+    }
+
     if(values.periode_from){
-      let tempYear = values.periode_from.split('/')[2]
-      let tempMonth = values.periode_from.split('/')[1]
-      let tempDay = values.periode_from.split('/')[0]
-      tempGet.push(`periode_from=${tempYear}-${tempMonth}-${tempDay}`)
+      tempGet.push(`periode_from=${parseDateStr(values.periode_from)}`)
     }
     if(values.periode_to){
-      let tempYear2 = values.periode_to.split('/')[2]
-      let tempMonth2 = values.periode_to.split('/')[1]
-      let tempDay2 = values.periode_to.split('/')[0]
-      tempGet.push(`periode_to=${tempYear2}-${tempMonth2}-${tempDay2}`)
+      tempGet.push(`periode_to=${parseDateStr(values.periode_to)}`)
     }
     if(values.m_dir_id){
       tempGet.push(`m_dir_id=${values.m_dir_id}`)
@@ -76,14 +84,17 @@
     if(values.m_divisi_id){
       tempGet.push(`m_divisi_id=${values.m_divisi_id}`)
     }
-    if(values.m_dept_id){
-      tempGet.push(`m_dept_id=${values.m_dept_id}`)
-    }
-    if(values.m_posisi_id){
-      tempGet.push(`m_posisi_id=${values.m_posisi_id}`)
-    }
     if(values.m_kary_id){
       tempGet.push(`m_kary_id=${values.m_kary_id}`)
+    }
+    if(values.tgl_masuk_from){
+      tempGet.push(`tgl_masuk_from=${parseDateStr(values.tgl_masuk_from)}`)
+    }
+    if(values.tgl_masuk_to){
+      tempGet.push(`tgl_masuk_to=${parseDateStr(values.tgl_masuk_to)}`)
+    }
+    if(values.tunjangan_filter){
+      tempGet.push(`tunjangan_filter=${encodeURIComponent(values.tunjangan_filter)}`)
     }
     const paramsGet = tempGet.join("&")
     if(values.tipe?.toLowerCase() !== 'html'){

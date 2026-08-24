@@ -14,7 +14,7 @@
           <div>
             <label class="font-semibold">Tipe Export</label>
               <FieldSelect 
-                :bind="{ readonly: !actionText, clearable: false }" 
+                :bind="{ readonly: false, clearable: false }" 
                 class="w-full py-2 !mt-0"
                 :value="values.tipe" 
                 :errorText="formErrors.tipe ? 'failed' : ''"
@@ -62,9 +62,9 @@
               </div>
           </div>
           <div>
-            <label class="font-semibold">Direktorat</label>
+            <label class="font-semibold">Unit</label>
               <FieldSelect 
-                :bind="{ readonly: !actionText }" 
+                :bind="{ readonly: false }" 
                 class="w-full py-2 !mt-0"
                 :value="values.m_dir_id" 
                 :errorText="formErrors.m_dir_id ? 'failed' : ''"
@@ -72,10 +72,7 @@
                 :hints="formErrors.m_dir_id" 
                 :check="false"
                 label=""
-                @update:valueFull="(objVal)=>{
-                  values.m_divisi_id = null
-                }"
-                placeholder="Pilih Direktorat"
+                placeholder="Pilih Unit"
                 valueField="id" 
                 displayField="nama"
                 :api="{
@@ -86,16 +83,15 @@
                     },
                     params: {
                         single: true,
-                        join: false,                    
-                        where: `this.is_active='true'`
+                        join: false
                     }
                 }"
             />
           </div>
           <div>
-            <label class="font-semibold">Divisi</label>
+            <label class="font-semibold">Jabatan</label>
               <FieldSelect 
-                :bind="{ readonly: !actionText }" 
+                :bind="{ readonly: false }" 
                 class="w-full py-2 !mt-0"
                 :value="values.m_divisi_id" 
                 :errorText="formErrors.m_divisi_id ? 'failed' : ''"
@@ -103,7 +99,7 @@
                 :hints="formErrors.m_divisi_id" 
                 :check="false"
                 label=""
-                placeholder="Pilih Divisi"
+                placeholder="Pilih Jabatan"
                 valueField="id" 
                 displayField="nama"
                 :api="{
@@ -115,65 +111,61 @@
                     params: {
                         single: true,
                         join: false,
-                        where: `this.m_dir_id=${values.m_dir_id ?? 0} AND this.is_active='true'`
-                    }
-                }"
-            />
-          </div>
-          <div>
-            <label class="font-semibold">Departemen</label>
-              <FieldSelect 
-                :bind="{ readonly: !actionText }" 
-                class="w-full py-2 !mt-0"
-                :value="values.m_dept_id" 
-                :errorText="formErrors.m_dept_id ? 'failed' : ''"
-                @input="v => values.m_dept_id = v" 
-                :hints="formErrors.m_dept_id" 
-                :check="false"
-                label=""
-                placeholder="Pilih Departement"
-                valueField="id" 
-                displayField="nama"
-                :api="{
-                    url: `${store.server.url_backend}/operation/m_dept`,
-                    headers: { 
-                        'Content-Type': 'Application/json', 
-                        Authorization: `${store.user.token_type} ${store.user.token}`
-                    },
-                    params: {
-                        single: true,
-                        join: false,                    
-                        where: `m_divisi_id=${values.m_divisi_id ?? 0} AND this.is_active='true'`
-                    }
-                }"
-            />
-          </div>
-          <div>
-            <label class="font-semibold">Posisi</label>
-              <FieldSelect 
-                :bind="{ readonly: !actionText }" 
-                class="w-full py-2 !mt-0"
-                :value="values.m_posisi_id" 
-                :errorText="formErrors.m_posisi_id ? 'failed' : ''"
-                @input="v => values.m_posisi_id = v" 
-                :hints="formErrors.m_posisi_id" 
-                :check="false"
-                label=""
-                placeholder="Pilih Posisi"
-                valueField="id" 
-                displayField="desc_kerja"
-                :api="{
-                    url: `${store.server.url_backend}/operation/m_posisi`,
-                    headers: { 
-                        'Content-Type': 'Application/json', 
-                        Authorization: `${store.user.token_type} ${store.user.token}`
-                    },
-                    params: {
-                        single: true,
-                        join: false,
                         where: `this.is_active='true'`
                     }
                 }"
+            />
+          </div>
+
+          <div class="grid grid-cols-2 gap-2">
+              <div>
+                  <label class="font-semibold">Tanggal Masuk Dari
+                      <label class="text-red-500 space-x-0 pl-0"></label>
+                  </label>
+                  <FieldX 
+                      type="date"
+                      :bind="{ readonly: false }" 
+                      class="w-full py-2 !mt-0" 
+                      :value="values.tgl_masuk_from" 
+                      label="" 
+                      placeholder="DD/MM/YY" 
+                      :errorText="formErrors.tgl_masuk_from?'failed':''"
+                      @input="v=>values.tgl_masuk_from=v" 
+                      :hints="formErrors.tgl_masuk_from" 
+                      :check="false"
+                  />
+              </div>
+              <div>
+                  <FieldX 
+                      type="date"
+                      :bind="{ readonly: false }" 
+                      class="w-full py-2 !mt-5" 
+                      :value="values.tgl_masuk_to" 
+                      label="" 
+                      placeholder="DD/MM/YY" 
+                      :errorText="formErrors.tgl_masuk_to?'failed':''"
+                      @input="v=>values.tgl_masuk_to=v" 
+                      :hints="formErrors.tgl_masuk_to"  
+                      :check="false"
+                  />
+              </div>
+          </div>
+
+          <div>
+            <label class="font-semibold">Filter Tunjangan</label>
+              <FieldSelect 
+                :bind="{ readonly: false }" 
+                class="w-full py-2 !mt-0"
+                :value="values.tunjangan_filter" 
+                :errorText="formErrors.tunjangan_filter ? 'failed' : ''"
+                @input="v => values.tunjangan_filter = v" 
+                :hints="formErrors.tunjangan_filter" 
+                :check="false"
+                label=""
+                :options="['Semua','Multi Job','Incentive','Jabatan','Penjualan','Lain - Lain']"
+                placeholder="Pilih Jenis Tunjangan"
+                valueField="key" 
+                displayField="key"
             />
           </div>
 

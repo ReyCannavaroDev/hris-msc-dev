@@ -782,7 +782,11 @@ public function salaryOfKary($id, $periode_awal, $periode_akhir)
 
                     $m_kary = m_kary::findOrFail($kary_id);
 
-                    $tgl_masuk = $m_kary->tgl_masuk ? Carbon::parse($m_kary->tgl_masuk) : null;
+                    $tgl_masuk = $m_kary->tgl_masuk 
+                        ? Carbon::parse($m_kary->tgl_masuk) 
+                        : (optional($m_kary->m_kary_det_kontrak()->orderBy('id')->first())->tgl_awal 
+                            ? Carbon::parse($m_kary->m_kary_det_kontrak()->orderBy('id')->first()->tgl_awal) 
+                            : null);
                     // We DO NOT override $start here, so the period is the full calendar month.
                     // if ($tgl_masuk && $tgl_masuk->greaterThan($start)) {
                       //     $start = clone $tgl_masuk;
