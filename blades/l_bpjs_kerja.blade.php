@@ -14,7 +14,7 @@
           <label class="font-semibold">Tipe Export</label>
           <FieldSelect :bind="{ readonly: !actionText }" class="w-full py-2 !mt-0" :value="values.tipe"
             :errorText="formErrors.tipe ? 'failed' : ''" @input="v => values.tipe = v" :hints="formErrors.tipe"
-            :check="false" label="" :options="['Excel']" placeholder="Pilih Tipe Export" valueField="key"
+            :check="false" label="" :options="['Excel', 'HTML']" placeholder="Pilih Tipe Export" valueField="key"
             displayField="key" />
         </div>
 
@@ -114,11 +114,17 @@
             Memproses...
           </template>
           <template v-else>
-            Export Excel
+            {{ values.tipe?.toLowerCase() === 'html' ? 'View' : 'Export Excel' }}
           </template>
         </button>
       </div>
       <!-- END COLUMN -->
+      <!-- ACTION BUTTON START -->
+      <div class="overflow-x-auto mt-6 mb-4 px-4" v-show="exportHtml">
+        <hr class="mb-4">
+        <div id="exportTable">
+        </div>
+      </div>
     </div>
   </div>
 </div>

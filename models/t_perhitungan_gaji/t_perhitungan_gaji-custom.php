@@ -1106,6 +1106,56 @@ public function salaryOfKary($id, $periode_awal, $periode_akhir)
                 ];
             }
 
+            if ($req->export === 'html' || strtolower($req->tipe ?? '') === 'html') {
+                $html = '<div class="table-responsive p-3" style="background:#fff; font-family:sans-serif; overflow-x:auto;">';
+                $html .= '<h3 style="margin-bottom:4px; font-weight:bold; font-size:18px; color:#1f2937;">LAPORAN BPJS KESEHATAN</h3>';
+                $html .= '<p style="color:#6b7280; font-size:13px; margin-top:0; margin-bottom:16px;">Periode: ' . htmlspecialchars($monthStr) . '</p>';
+                $html .= '<table style="width:100%; border-collapse:collapse; font-size:12px; text-align:left;">';
+                $html .= '<thead><tr style="background:#005FBF; color:#ffffff;">';
+                $html .= '<th style="padding:10px 8px; border:1px solid #d1d5db; text-align:center;">No</th>';
+                $html .= '<th style="padding:10px 8px; border:1px solid #d1d5db;">ID Karyawan</th>';
+                $html .= '<th style="padding:10px 8px; border:1px solid #d1d5db;">Nama Karyawan</th>';
+                $html .= '<th style="padding:10px 8px; border:1px solid #d1d5db;">Unit</th>';
+                $html .= '<th style="padding:10px 8px; border:1px solid #d1d5db;">Jabatan</th>';
+                $html .= '<th style="padding:10px 8px; border:1px solid #d1d5db;">No BPJS Kes</th>';
+                $html .= '<th style="padding:10px 8px; border:1px solid #d1d5db; text-align:right;">Dasar Upah</th>';
+                $html .= '<th style="padding:10px 8px; border:1px solid #d1d5db; text-align:right;">Iuran Perush (4%)</th>';
+                $html .= '<th style="padding:10px 8px; border:1px solid #d1d5db; text-align:right;">Iuran Kary (1%)</th>';
+                $html .= '<th style="padding:10px 8px; border:1px solid #d1d5db; text-align:right;">Total Iuran (5%)</th>';
+                $html .= '</tr></thead><tbody>';
+
+                $totUpah = 0; $totPerush = 0; $totKary = 0; $totAll = 0;
+                foreach ($rows as $r) {
+                    $totUpah += $r['DASAR UPAH'];
+                    $totPerush += $r['IURAN PERUSAHAAN (4%)'];
+                    $totKary += $r['IURAN KARYAWAN (1%)'];
+                    $totAll += $r['TOTAL IURAN (5%)'];
+
+                    $html .= '<tr style="border-bottom:1px solid #e5e7eb;">';
+                    $html .= '<td style="padding:8px; border:1px solid #e5e7eb; text-align:center;">' . $r['NO'] . '</td>';
+                    $html .= '<td style="padding:8px; border:1px solid #e5e7eb;">' . htmlspecialchars($r['ID KARYAWAN']) . '</td>';
+                    $html .= '<td style="padding:8px; border:1px solid #e5e7eb; font-weight:600;">' . htmlspecialchars($r['NAMA KARYAWAN']) . '</td>';
+                    $html .= '<td style="padding:8px; border:1px solid #e5e7eb;">' . htmlspecialchars($r['UNIT']) . '</td>';
+                    $html .= '<td style="padding:8px; border:1px solid #e5e7eb;">' . htmlspecialchars($r['DIVISI']) . '</td>';
+                    $html .= '<td style="padding:8px; border:1px solid #e5e7eb;">' . htmlspecialchars($r['NO BPJS KESEHATAN']) . '</td>';
+                    $html .= '<td style="padding:8px; border:1px solid #e5e7eb; text-align:right;">Rp ' . number_format($r['DASAR UPAH'], 0, ',', '.') . '</td>';
+                    $html .= '<td style="padding:8px; border:1px solid #e5e7eb; text-align:right; color:#16a34a; font-weight:500;">Rp ' . number_format($r['IURAN PERUSAHAAN (4%)'], 0, ',', '.') . '</td>';
+                    $html .= '<td style="padding:8px; border:1px solid #e5e7eb; text-align:right; color:#dc2626; font-weight:500;">Rp ' . number_format($r['IURAN KARYAWAN (1%)'], 0, ',', '.') . '</td>';
+                    $html .= '<td style="padding:8px; border:1px solid #e5e7eb; text-align:right; font-weight:700;">Rp ' . number_format($r['TOTAL IURAN (5%)'], 0, ',', '.') . '</td>';
+                    $html .= '</tr>';
+                }
+
+                $html .= '</tbody><tfoot><tr style="background:#f9fafb; font-weight:bold; border-top:2px solid #9ca3af;">';
+                $html .= '<td colspan="6" style="padding:10px 8px; border:1px solid #d1d5db; text-align:right;">TOTAL:</td>';
+                $html .= '<td style="padding:10px 8px; border:1px solid #d1d5db; text-align:right;">Rp ' . number_format($totUpah, 0, ',', '.') . '</td>';
+                $html .= '<td style="padding:10px 8px; border:1px solid #d1d5db; text-align:right; color:#16a34a;">Rp ' . number_format($totPerush, 0, ',', '.') . '</td>';
+                $html .= '<td style="padding:10px 8px; border:1px solid #d1d5db; text-align:right; color:#dc2626;">Rp ' . number_format($totKary, 0, ',', '.') . '</td>';
+                $html .= '<td style="padding:10px 8px; border:1px solid #d1d5db; text-align:right; color:#1e40af;">Rp ' . number_format($totAll, 0, ',', '.') . '</td>';
+                $html .= '</tr></tfoot></table></div>';
+
+                return response($html, 200)->header('Content-Type', 'text/html');
+            }
+
             $export = new class(collect($rows)) implements \Maatwebsite\Excel\Concerns\FromCollection, \Maatwebsite\Excel\Concerns\WithHeadings, \Maatwebsite\Excel\Concerns\WithStyles {
                 protected $data;
                 public function __construct($data) { $this->data = $data; }
@@ -1209,6 +1259,80 @@ public function salaryOfKary($id, $periode_awal, $periode_akhir)
                     'TOTAL DIPOTONG KARYAWAN' => $totalKaryawan,
                     'GRAND TOTAL' => $grandTotal,
                 ];
+            }
+
+            if ($req->export === 'html' || strtolower($req->tipe ?? '') === 'html') {
+                $html = '<div class="table-responsive p-3" style="background:#fff; font-family:sans-serif; overflow-x:auto;">';
+                $html .= '<h3 style="margin-bottom:4px; font-weight:bold; font-size:18px; color:#1f2937;">LAPORAN BPJS KETENAGAKERJAAN</h3>';
+                $html .= '<p style="color:#6b7280; font-size:13px; margin-top:0; margin-bottom:16px;">Periode: ' . htmlspecialchars($monthStr) . '</p>';
+                $html .= '<table style="width:100%; border-collapse:collapse; font-size:11px; text-align:left;">';
+                $html .= '<thead><tr style="background:#005FBF; color:#ffffff;">';
+                $html .= '<th style="padding:8px 6px; border:1px solid #d1d5db; text-align:center;">No</th>';
+                $html .= '<th style="padding:8px 6px; border:1px solid #d1d5db;">ID Kary</th>';
+                $html .= '<th style="padding:8px 6px; border:1px solid #d1d5db;">Nama Karyawan</th>';
+                $html .= '<th style="padding:8px 6px; border:1px solid #d1d5db;">Unit</th>';
+                $html .= '<th style="padding:8px 6px; border:1px solid #d1d5db;">Jabatan</th>';
+                $html .= '<th style="padding:8px 6px; border:1px solid #d1d5db;">No BPJS TK</th>';
+                $html .= '<th style="padding:8px 6px; border:1px solid #d1d5db; text-align:right;">Dasar Upah</th>';
+                $html .= '<th style="padding:8px 6px; border:1px solid #d1d5db; text-align:right;">JKK (0.24%)</th>';
+                $html .= '<th style="padding:8px 6px; border:1px solid #d1d5db; text-align:right;">JKM (0.30%)</th>';
+                $html .= '<th style="padding:8px 6px; border:1px solid #d1d5db; text-align:right;">JHT Perush (3.7%)</th>';
+                $html .= '<th style="padding:8px 6px; border:1px solid #d1d5db; text-align:right;">JHT Kary (2%)</th>';
+                $html .= '<th style="padding:8px 6px; border:1px solid #d1d5db; text-align:right;">JP Perush (2%)</th>';
+                $html .= '<th style="padding:8px 6px; border:1px solid #d1d5db; text-align:right;">JP Kary (1%)</th>';
+                $html .= '<th style="padding:8px 6px; border:1px solid #d1d5db; text-align:right; background:#047857;">Total Perush</th>';
+                $html .= '<th style="padding:8px 6px; border:1px solid #d1d5db; text-align:right; background:#b91c1c;">Total Kary</th>';
+                $html .= '<th style="padding:8px 6px; border:1px solid #d1d5db; text-align:right; background:#1e3a8a;">Grand Total</th>';
+                $html .= '</tr></thead><tbody>';
+
+                $totUpah = 0; $totJkk = 0; $totJkm = 0; $totJhtP = 0; $totJhtK = 0; $totJpP = 0; $totJpK = 0; $totPerush = 0; $totKary = 0; $totAll = 0;
+                foreach ($rows as $r) {
+                    $totUpah += $r['DASAR UPAH'];
+                    $totJkk += $r['JKK (0.24%)'];
+                    $totJkm += $r['JKM (0.30%)'];
+                    $totJhtP += $r['JHT PERUSAHAAN (3.7%)'];
+                    $totJhtK += $r['JHT KARYAWAN (2%)'];
+                    $totJpP += $r['JP PERUSAHAAN (2%)'];
+                    $totJpK += $r['JP KARYAWAN (1%)'];
+                    $totPerush += $r['TOTAL DITANGGUNG PERUSAHAAN'];
+                    $totKary += $r['TOTAL DIPOTONG KARYAWAN'];
+                    $totAll += $r['GRAND TOTAL'];
+
+                    $html .= '<tr style="border-bottom:1px solid #e5e7eb;">';
+                    $html .= '<td style="padding:6px; border:1px solid #e5e7eb; text-align:center;">' . $r['NO'] . '</td>';
+                    $html .= '<td style="padding:6px; border:1px solid #e5e7eb;">' . htmlspecialchars($r['ID KARYAWAN']) . '</td>';
+                    $html .= '<td style="padding:6px; border:1px solid #e5e7eb; font-weight:600;">' . htmlspecialchars($r['NAMA KARYAWAN']) . '</td>';
+                    $html .= '<td style="padding:6px; border:1px solid #e5e7eb;">' . htmlspecialchars($r['UNIT']) . '</td>';
+                    $html .= '<td style="padding:6px; border:1px solid #e5e7eb;">' . htmlspecialchars($r['DIVISI']) . '</td>';
+                    $html .= '<td style="padding:6px; border:1px solid #e5e7eb;">' . htmlspecialchars($r['NO BPJS TK']) . '</td>';
+                    $html .= '<td style="padding:6px; border:1px solid #e5e7eb; text-align:right;">Rp ' . number_format($r['DASAR UPAH'], 0, ',', '.') . '</td>';
+                    $html .= '<td style="padding:6px; border:1px solid #e5e7eb; text-align:right;">Rp ' . number_format($r['JKK (0.24%)'], 0, ',', '.') . '</td>';
+                    $html .= '<td style="padding:6px; border:1px solid #e5e7eb; text-align:right;">Rp ' . number_format($r['JKM (0.30%)'], 0, ',', '.') . '</td>';
+                    $html .= '<td style="padding:6px; border:1px solid #e5e7eb; text-align:right;">Rp ' . number_format($r['JHT PERUSAHAAN (3.7%)'], 0, ',', '.') . '</td>';
+                    $html .= '<td style="padding:6px; border:1px solid #e5e7eb; text-align:right;">Rp ' . number_format($r['JHT KARYAWAN (2%)'], 0, ',', '.') . '</td>';
+                    $html .= '<td style="padding:6px; border:1px solid #e5e7eb; text-align:right;">Rp ' . number_format($r['JP PERUSAHAAN (2%)'], 0, ',', '.') . '</td>';
+                    $html .= '<td style="padding:6px; border:1px solid #e5e7eb; text-align:right;">Rp ' . number_format($r['JP KARYAWAN (1%)'], 0, ',', '.') . '</td>';
+                    $html .= '<td style="padding:6px; border:1px solid #e5e7eb; text-align:right; font-weight:600; color:#047857;">Rp ' . number_format($r['TOTAL DITANGGUNG PERUSAHAAN'], 0, ',', '.') . '</td>';
+                    $html .= '<td style="padding:6px; border:1px solid #e5e7eb; text-align:right; font-weight:600; color:#b91c1c;">Rp ' . number_format($r['TOTAL DIPOTONG KARYAWAN'], 0, ',', '.') . '</td>';
+                    $html .= '<td style="padding:6px; border:1px solid #e5e7eb; text-align:right; font-weight:700; color:#1e3a8a;">Rp ' . number_format($r['GRAND TOTAL'], 0, ',', '.') . '</td>';
+                    $html .= '</tr>';
+                }
+
+                $html .= '</tbody><tfoot><tr style="background:#f9fafb; font-weight:bold; border-top:2px solid #9ca3af;">';
+                $html .= '<td colspan="6" style="padding:8px 6px; border:1px solid #d1d5db; text-align:right;">TOTAL:</td>';
+                $html .= '<td style="padding:8px 6px; border:1px solid #d1d5db; text-align:right;">Rp ' . number_format($totUpah, 0, ',', '.') . '</td>';
+                $html .= '<td style="padding:8px 6px; border:1px solid #d1d5db; text-align:right;">Rp ' . number_format($totJkk, 0, ',', '.') . '</td>';
+                $html .= '<td style="padding:8px 6px; border:1px solid #d1d5db; text-align:right;">Rp ' . number_format($totJkm, 0, ',', '.') . '</td>';
+                $html .= '<td style="padding:8px 6px; border:1px solid #d1d5db; text-align:right;">Rp ' . number_format($totJhtP, 0, ',', '.') . '</td>';
+                $html .= '<td style="padding:8px 6px; border:1px solid #d1d5db; text-align:right;">Rp ' . number_format($totJhtK, 0, ',', '.') . '</td>';
+                $html .= '<td style="padding:8px 6px; border:1px solid #d1d5db; text-align:right;">Rp ' . number_format($totJpP, 0, ',', '.') . '</td>';
+                $html .= '<td style="padding:8px 6px; border:1px solid #d1d5db; text-align:right;">Rp ' . number_format($totJpK, 0, ',', '.') . '</td>';
+                $html .= '<td style="padding:8px 6px; border:1px solid #d1d5db; text-align:right; color:#047857;">Rp ' . number_format($totPerush, 0, ',', '.') . '</td>';
+                $html .= '<td style="padding:8px 6px; border:1px solid #d1d5db; text-align:right; color:#b91c1c;">Rp ' . number_format($totKary, 0, ',', '.') . '</td>';
+                $html .= '<td style="padding:8px 6px; border:1px solid #d1d5db; text-align:right; color:#1e3a8a;">Rp ' . number_format($totAll, 0, ',', '.') . '</td>';
+                $html .= '</tr></tfoot></table></div>';
+
+                return response($html, 200)->header('Content-Type', 'text/html');
             }
 
             $export = new class(collect($rows)) implements \Maatwebsite\Excel\Concerns\FromCollection, \Maatwebsite\Excel\Concerns\WithHeadings, \Maatwebsite\Excel\Concerns\WithStyles {
@@ -1410,6 +1534,63 @@ public function salaryOfKary($id, $periode_awal, $periode_akhir)
                     'PKP SETAHUN' => $pkpSetahun,
                     'PPH 21 TERUTANG (BULAN INI)' => $pph21Bulanan,
                 ];
+            }
+
+            if ($req->export === 'html' || strtolower($req->tipe ?? '') === 'html') {
+                $html = '<div class="table-responsive p-3" style="background:#fff; font-family:sans-serif; overflow-x:auto;">';
+                $html .= '<h3 style="margin-bottom:4px; font-weight:bold; font-size:18px; color:#1f2937;">LAPORAN PPH 21 KARYAWAN</h3>';
+                $html .= '<p style="color:#6b7280; font-size:13px; margin-top:0; margin-bottom:16px;">Periode: ' . htmlspecialchars($monthStr) . '</p>';
+                $html .= '<table style="width:100%; border-collapse:collapse; font-size:11px; text-align:left;">';
+                $html .= '<thead><tr style="background:#005FBF; color:#ffffff;">';
+                $html .= '<th style="padding:8px 6px; border:1px solid #d1d5db; text-align:center;">No</th>';
+                $html .= '<th style="padding:8px 6px; border:1px solid #d1d5db;">ID Kary</th>';
+                $html .= '<th style="padding:8px 6px; border:1px solid #d1d5db;">Nama Karyawan</th>';
+                $html .= '<th style="padding:8px 6px; border:1px solid #d1d5db;">NPWP</th>';
+                $html .= '<th style="padding:8px 6px; border:1px solid #d1d5db;">PTKP</th>';
+                $html .= '<th style="padding:8px 6px; border:1px solid #d1d5db;">Unit</th>';
+                $html .= '<th style="padding:8px 6px; border:1px solid #d1d5db;">Jabatan</th>';
+                $html .= '<th style="padding:8px 6px; border:1px solid #d1d5db; text-align:right;">Penghasilan Bruto</th>';
+                $html .= '<th style="padding:8px 6px; border:1px solid #d1d5db; text-align:right;">Pengurang / Biaya Jab</th>';
+                $html .= '<th style="padding:8px 6px; border:1px solid #d1d5db; text-align:right;">Netto (Bulan)</th>';
+                $html .= '<th style="padding:8px 6px; border:1px solid #d1d5db; text-align:right;">PTKP Setahun</th>';
+                $html .= '<th style="padding:8px 6px; border:1px solid #d1d5db; text-align:right;">PKP Setahun</th>';
+                $html .= '<th style="padding:8px 6px; border:1px solid #d1d5db; text-align:right; background:#b91c1c;">PPh 21 Bulan Ini</th>';
+                $html .= '</tr></thead><tbody>';
+
+                $totBruto = 0; $totPengurang = 0; $totNetto = 0; $totPph = 0;
+                foreach ($rows as $r) {
+                    $totBruto += $r['PENGHASILAN BRUTO'];
+                    $totPengurang += $r['BIAYA JABATAN & PENGURANG'];
+                    $totNetto += $r['PENGHASILAN NETTO (BULAN)'];
+                    $totPph += $r['PPH 21 TERUTANG (BULAN INI)'];
+
+                    $html .= '<tr style="border-bottom:1px solid #e5e7eb;">';
+                    $html .= '<td style="padding:6px; border:1px solid #e5e7eb; text-align:center;">' . $r['NO'] . '</td>';
+                    $html .= '<td style="padding:6px; border:1px solid #e5e7eb;">' . htmlspecialchars($r['ID KARYAWAN']) . '</td>';
+                    $html .= '<td style="padding:6px; border:1px solid #e5e7eb; font-weight:600;">' . htmlspecialchars($r['NAMA KARYAWAN']) . '</td>';
+                    $html .= '<td style="padding:6px; border:1px solid #e5e7eb;">' . htmlspecialchars($r['NPWP']) . '</td>';
+                    $html .= '<td style="padding:6px; border:1px solid #e5e7eb; text-align:center;">' . htmlspecialchars($r['STATUS PTKP']) . '</td>';
+                    $html .= '<td style="padding:6px; border:1px solid #e5e7eb;">' . htmlspecialchars($r['UNIT']) . '</td>';
+                    $html .= '<td style="padding:6px; border:1px solid #e5e7eb;">' . htmlspecialchars($r['DIVISI']) . '</td>';
+                    $html .= '<td style="padding:6px; border:1px solid #e5e7eb; text-align:right;">Rp ' . number_format($r['PENGHASILAN BRUTO'], 0, ',', '.') . '</td>';
+                    $html .= '<td style="padding:6px; border:1px solid #e5e7eb; text-align:right;">Rp ' . number_format($r['BIAYA JABATAN & PENGURANG'], 0, ',', '.') . '</td>';
+                    $html .= '<td style="padding:6px; border:1px solid #e5e7eb; text-align:right;">Rp ' . number_format($r['PENGHASILAN NETTO (BULAN)'], 0, ',', '.') . '</td>';
+                    $html .= '<td style="padding:6px; border:1px solid #e5e7eb; text-align:right;">Rp ' . number_format($r['PTKP SETAHUN'], 0, ',', '.') . '</td>';
+                    $html .= '<td style="padding:6px; border:1px solid #e5e7eb; text-align:right;">Rp ' . number_format($r['PKP SETAHUN'], 0, ',', '.') . '</td>';
+                    $html .= '<td style="padding:6px; border:1px solid #e5e7eb; text-align:right; font-weight:700; color:#b91c1c;">Rp ' . number_format($r['PPH 21 TERUTANG (BULAN INI)'], 0, ',', '.') . '</td>';
+                    $html .= '</tr>';
+                }
+
+                $html .= '</tbody><tfoot><tr style="background:#f9fafb; font-weight:bold; border-top:2px solid #9ca3af;">';
+                $html .= '<td colspan="7" style="padding:8px 6px; border:1px solid #d1d5db; text-align:right;">TOTAL:</td>';
+                $html .= '<td style="padding:8px 6px; border:1px solid #d1d5db; text-align:right;">Rp ' . number_format($totBruto, 0, ',', '.') . '</td>';
+                $html .= '<td style="padding:8px 6px; border:1px solid #d1d5db; text-align:right;">Rp ' . number_format($totPengurang, 0, ',', '.') . '</td>';
+                $html .= '<td style="padding:8px 6px; border:1px solid #d1d5db; text-align:right;">Rp ' . number_format($totNetto, 0, ',', '.') . '</td>';
+                $html .= '<td colspan="2" style="padding:8px 6px; border:1px solid #d1d5db;"></td>';
+                $html .= '<td style="padding:8px 6px; border:1px solid #d1d5db; text-align:right; color:#b91c1c;">Rp ' . number_format($totPph, 0, ',', '.') . '</td>';
+                $html .= '</tr></tfoot></table></div>';
+
+                return response($html, 200)->header('Content-Type', 'text/html');
             }
 
             $export = new class(collect($rows)) implements \Maatwebsite\Excel\Concerns\FromCollection, \Maatwebsite\Excel\Concerns\WithHeadings, \Maatwebsite\Excel\Concerns\WithStyles {
