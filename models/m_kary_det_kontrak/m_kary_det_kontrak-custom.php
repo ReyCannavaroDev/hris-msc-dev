@@ -78,25 +78,17 @@ class m_kary_det_kontrak extends \App\Models\BasicModels\m_kary_det_kontrak
             ->where('key', 'T')
             ->first()?->id ?? 0;
 
-        // Jika salah satu kosong → default bulan ini
-        if (!$periode_awal) {
-            $periode_awal = Carbon::now()->format('Y-m');
-        }
         if (!$periode_akhir) {
             $periode_akhir = Carbon::now()->format('Y-m');
         }
 
-        // Convert YYYY-MM → tanggal awal & akhir bulan
         try {
-            $startDate = Carbon::createFromFormat('Y-m', $periode_awal)->startOfMonth();
-            $endDate   = Carbon::createFromFormat('Y-m', $periode_akhir)->endOfMonth();
+            $endDate = Carbon::createFromFormat('Y-m', $periode_akhir)->endOfMonth();
         } catch (\Exception $e) {
-            // fallback jika format salah
-            $startDate = Carbon::now()->startOfMonth();
-            $endDate   = Carbon::now()->endOfMonth();
+            $endDate = Carbon::now()->endOfMonth();
         }
 
-        return $model
+        $query = $model
             ->select(
                 'm_kary.id',
                 'm_kary.nama_lengkap as m_kary.nama_lengkap',
@@ -107,10 +99,25 @@ class m_kary_det_kontrak extends \App\Models\BasicModels\m_kary_det_kontrak
                 'm_kary_det_kontrak.*'
             )
             ->join('m_kary', 'm_kary_det_kontrak.m_karyawan_id', 'm_kary.id')
-            ->whereBetween('m_kary_det_kontrak.tgl_akhir', [$startDate, $endDate])
             ->where('m_kary_det_kontrak.status', true)
-            ->whereDoesntHave('t_extend_kontrak')
+            ->whereDoesntHave('t_extend_kontrak', function($q) {
+                $q->whereIn('status', ['COMPLETED', 'APPROVED']);
+            })
             ->whereNotIn('m_kary_det_kontrak.tipe_karyawan_id', (array) $id_tetap);
+
+        // Jika periode_awal dikirim spesifik, gunakan range. Jika default, ambil akumulasi sampai periode_akhir
+        if ($periode_awal) {
+            try {
+                $startDate = Carbon::createFromFormat('Y-m', $periode_awal)->startOfMonth();
+                $query->whereBetween('m_kary_det_kontrak.tgl_akhir', [$startDate, $endDate]);
+            } catch (\Exception $e) {
+                $query->where('m_kary_det_kontrak.tgl_akhir', '<=', $endDate);
+            }
+        } else {
+            $query->where('m_kary_det_kontrak.tgl_akhir', '<=', $endDate);
+        }
+
+        return $query->orderBy('m_kary_det_kontrak.tgl_akhir', 'ASC');
     }
 
     public function public_exportEndKontrak()
@@ -128,33 +135,38 @@ class m_kary_det_kontrak extends \App\Models\BasicModels\m_kary_det_kontrak
                 ->where('key', 'T')
                 ->first()?->id ?? 0;
 
-            // Jika salah satu kosong → default bulan ini
-            if (!$periode_awal) {
-                $periode_awal = Carbon::now()->format('Y-m');
-            }
             if (!$periode_akhir) {
                 $periode_akhir = Carbon::now()->format('Y-m');
             }
 
-            // Convert YYYY-MM → tanggal awal & akhir bulan
             try {
-                $startDate = Carbon::createFromFormat('Y-m', $periode_awal)->startOfMonth();
-                $endDate   = Carbon::createFromFormat('Y-m', $periode_akhir)->endOfMonth();
+                $endDate = Carbon::createFromFormat('Y-m', $periode_akhir)->endOfMonth();
             } catch (\Exception $e) {
-                // fallback jika format salah
-                $startDate = Carbon::now()->startOfMonth();
-                $endDate   = Carbon::now()->endOfMonth();
+                $endDate = Carbon::now()->endOfMonth();
             }
 
+            $query = m_kary_det_kontrak::join('m_kary', 'm_kary_det_kontrak.m_karyawan_id', 'm_kary.id')
+                ->where('m_kary_det_kontrak.status', true)
+                ->whereDoesntHave('t_extend_kontrak', function($q) {
+                    $q->whereIn('status', ['COMPLETED', 'APPROVED']);
+                })
+                ->whereNotIn('m_kary_det_kontrak.tipe_karyawan_id', (array) $id_tetap);
 
-            // Ambil data extend kontrak + relasi yang relevan
-            $data = m_kary_det_kontrak::join('m_kary', 'm_kary_det_kontrak.m_karyawan_id', 'm_kary.id')
-            ->whereBetween('m_kary_det_kontrak.tgl_akhir', [$startDate, $endDate])
-            ->where('m_kary_det_kontrak.status', true)
-            ->whereDoesntHave('t_extend_kontrak')
-            ->whereNotIn('m_kary_det_kontrak.tipe_karyawan_id', (array) $id_tetap)
+            if ($periode_awal) {
+                try {
+                    $startDate = Carbon::createFromFormat('Y-m', $periode_awal)->startOfMonth();
+                    $query->whereBetween('m_kary_det_kontrak.tgl_akhir', [$startDate, $endDate]);
+                } catch (\Exception $e) {
+                    $query->where('m_kary_det_kontrak.tgl_akhir', '<=', $endDate);
+                }
+            } else {
+                $query->where('m_kary_det_kontrak.tgl_akhir', '<=', $endDate);
+            }
+
+            $data = $query->orderBy('m_kary_det_kontrak.tgl_akhir', 'ASC')
                 ->get()
                 ->map(function ($extend) {
+                    $isPast = $extend->tgl_akhir ? Carbon::parse($extend->tgl_akhir)->isPast() : false;
                     return [
                         "NAMA_KARYAWAN" =>
                             $extend->m_karyawan?->nama_lengkap ?? "",
@@ -167,10 +179,8 @@ class m_kary_det_kontrak extends \App\Models\BasicModels\m_kary_det_kontrak
                         "TANGGAL_SELESAI" => $extend->tgl_akhir
                             ? Carbon::parse($extend->tgl_akhir)->format("d-m-Y")
                             : "",
-                        // "DURASI_BULAN" => $extend->duration ?? 0,
-                        // "TEMPLATE_KONTRAK" => $extend->contract_template ?? "",
-                        // "KONTRAK_TTD" => $extend->contract_signed ?? "",
-                        "STATUS" => ($extend->status ?? false) ? 'Aktif' : 'Nonaktif',
+                        "STATUS_KONTRAK" => $isPast ? 'Sudah Berakhir (Expired)' : 'Akan Berakhir',
+                        "STATUS_DATA" => ($extend->status ?? false) ? 'Aktif' : 'Nonaktif',
                         "DIBUAT_PADA" => $extend->created_at
                             ? $extend->created_at->format("Y-m-d H:i:s")
                             : "",
@@ -198,7 +208,8 @@ class m_kary_det_kontrak extends \App\Models\BasicModels\m_kary_det_kontrak
                         "TIPE KARYAWAN",
                         "TANGGAL MULAI",
                         "TANGGAL SELESAI",
-                        "STATUS",
+                        "STATUS KONTRAK",
+                        "STATUS DATA",
                         "DIBUAT PADA",
                     ];
                 }
@@ -218,28 +229,30 @@ class m_kary_det_kontrak extends \App\Models\BasicModels\m_kary_det_kontrak
 
     public function custom_countend()
     {
-        $startDate = Carbon::now()->startOfMonth()->addMonths(2)->startOfMonth();
-        $endDate   = Carbon::now()->endOfMonth()->addMonths(2)->endOfMonth();
-        $date = $startDate->copy()->translatedFormat('F Y');
+        $endDate = Carbon::now()->addDays(30)->format('Y-m-d');
+        $date = Carbon::now()->translatedFormat('F Y');
 
         $id_tetap = m_general::where('group', 'TIPE KARYAWAN')
             ->where('key', 'T')
             ->first()?->id ?? 0;
 
-        $count = m_kary_det_kontrak::whereBetween('tgl_akhir', [$startDate, $endDate])
-        ->whereDoesntHave('t_extend_kontrak')
-        ->whereNotIn('m_kary_det_kontrak.tipe_karyawan_id', (array) $id_tetap)
-        ->count();
+        $count = m_kary_det_kontrak::where('tgl_akhir', '<=', $endDate)
+            ->where('status', true)
+            ->whereDoesntHave('t_extend_kontrak', function($q) {
+                $q->whereIn('status', ['COMPLETED', 'APPROVED']);
+            })
+            ->whereNotIn('m_kary_det_kontrak.tipe_karyawan_id', (array) $id_tetap)
+            ->count();
 
         return response()->json([
             "periode" => $date,
             "count_end" => $count,
         ]);
     }
+
     public function custom_notifEndKontrak()
     {
-        $startDate = Carbon::now();
-        $endDate   = Carbon::now()->addDays(30);
+        $endDate = Carbon::now()->addDays(30)->format('Y-m-d');
 
         $id_tetap = m_general::where('group', 'TIPE KARYAWAN')
             ->where('key', 'T')
@@ -255,12 +268,19 @@ class m_kary_det_kontrak extends \App\Models\BasicModels\m_kary_det_kontrak
                 'm_kary_det_kontrak.tgl_awal',
                 'm_kary_det_kontrak.tgl_akhir'
             )
-            ->whereBetween('m_kary_det_kontrak.tgl_akhir', [$startDate, $endDate])
+            ->where('m_kary_det_kontrak.tgl_akhir', '<=', $endDate)
             ->where('m_kary_det_kontrak.status', true)
-            ->whereDoesntHave('t_extend_kontrak')
+            ->whereDoesntHave('t_extend_kontrak', function($q) {
+                $q->whereIn('status', ['COMPLETED', 'APPROVED']);
+            })
             ->whereNotIn('m_kary_det_kontrak.tipe_karyawan_id', (array) $id_tetap)
             ->orderBy('m_kary_det_kontrak.tgl_akhir', 'ASC')
-            ->get();
+            ->get()
+            ->map(function ($item) {
+                $item->is_expired = Carbon::parse($item->tgl_akhir)->isPast();
+                $item->status_label = $item->is_expired ? 'Sudah Berakhir' : 'Akan Berakhir';
+                return $item;
+            });
 
         return response()->json([
             "data" => $data,

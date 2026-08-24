@@ -46,10 +46,12 @@ class t_extend_kontrak extends \App\Models\BasicModels\t_extend_kontrak
             ->where('key', 'T')
             ->first()?->id ?? 0;
 
-        $contracts = \App\Models\BasicModels\m_kary_det_kontrak::whereBetween('tgl_akhir', [$startDate, $endDate])
+        $contracts = \App\Models\BasicModels\m_kary_det_kontrak::where('tgl_akhir', '<=', $endDate)
             ->where('status', true)
             ->whereNotIn('tipe_karyawan_id', (array) $id_tetap)
-            ->whereDoesntHave('t_extend_kontrak') 
+            ->whereDoesntHave('t_extend_kontrak', function($q) {
+                $q->whereIn('status', ['DRAFT', 'SUBMITTED', 'POSTED', 'APPROVED', 'COMPLETED']);
+            }) 
             ->get();
 
         $count = 0;

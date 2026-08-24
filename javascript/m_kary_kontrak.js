@@ -781,6 +781,43 @@ const landingKaryEx = reactive({
     }
   },
   {
+    headerName: 'Status Kontrak',
+    field: 'tgl_akhir',
+    filter: true,
+    sortable: true,
+    filter: 'ColFilter',
+    resizable: true,
+    flex: 1.5,
+    cellClass: ['border-r', '!border-gray-200', 'justify-center'],
+    cellRenderer: (params) => {
+      const v = params.value
+      if (!v) return ''
+      const s = String(v).replace(/\\\//g, '/').trim()
+      let d = null
+      if (/^\d{4}-\d{2}-\d{2}/.test(s)) {
+        d = new Date(s)
+      } else if (/^\d{2}\/\d{2}\/\d{4}$/.test(s)) {
+        const [dd, mm, yyyy] = s.split('/')
+        d = new Date(`${yyyy}-${mm}-${dd}`)
+      } else if (/^\d{2}-\d{2}-\d{4}$/.test(s)) {
+        const [dd, mm, yyyy] = s.split('-')
+        d = new Date(`${yyyy}-${mm}-${dd}`)
+      } else {
+        d = new Date(s)
+      }
+      if (!d || isNaN(d.getTime())) return ''
+      const today = new Date()
+      today.setHours(0, 0, 0, 0)
+      d.setHours(0, 0, 0, 0)
+
+      if (d < today) {
+        return '<span class="bg-red-100 text-red-700 border border-red-300 rounded px-2 py-0.5 text-xs font-semibold">Sudah Berakhir</span>'
+      } else {
+        return '<span class="bg-amber-100 text-amber-700 border border-amber-300 rounded px-2 py-0.5 text-xs font-semibold">Akan Berakhir</span>'
+      }
+    }
+  },
+  {
     headerName: 'Aksi',
     field: 'id',
     flex: 1,
