@@ -151,23 +151,34 @@
               </div>
           </div>
 
-          <div>
-            <label class="font-semibold">Filter Tunjangan</label>
-              <FieldSelect 
-                :bind="{ readonly: false }" 
-                class="w-full py-2 !mt-0"
-                :value="values.tunjangan_filter" 
-                :errorText="formErrors.tunjangan_filter ? 'failed' : ''"
-                @input="v => values.tunjangan_filter = v" 
-                :hints="formErrors.tunjangan_filter" 
-                :check="false"
-                label=""
-                :options="['Semua','Multi Job','Incentive','Jabatan','Penjualan','Lain - Lain']"
-                placeholder="Pilih Jenis Tunjangan"
-                valueField="key" 
-                displayField="key"
-            />
-          </div>
+           <div>
+             <label class="font-semibold">Filter Tunjangan</label>
+               <FieldSelect 
+                 :bind="{ disabled: false, clearable: true }" 
+                 class="w-full py-2 !mt-0"
+                 :value="values.tunjangan_filter" 
+                 :errorText="formErrors.tunjangan_filter ? 'failed' : ''"
+                 @input="v => values.tunjangan_filter = v" 
+                 :hints="formErrors.tunjangan_filter" 
+                 :check="false"
+                 label=""
+                 placeholder="Pilih Jenis Tunjangan"
+                 valueField="value" 
+                 displayField="value"
+                 :api="{
+                     url: `${store.server.url_backend}/operation/m_general`,
+                     headers: { 
+                         'Content-Type': 'Application/json', 
+                         Authorization: `${store.user.token_type} ${store.user.token}`
+                     },
+                     params: {
+                         single: true,
+                         join: false,
+                         where: `this.group='JENIS TUNJANGAN' AND this.is_active='true'`
+                     }
+                 }"
+             />
+           </div>
 
       </div>
         <div class="flex flex-row justify-end space-x-[20px] mt-[1em]">

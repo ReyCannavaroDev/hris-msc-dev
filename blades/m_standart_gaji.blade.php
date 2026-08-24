@@ -178,14 +178,12 @@
                 {{ i + 1 }}.
               </td>
               <td class="p-2 border border-[#CACACA]">
-                <FieldSelect
-                  :bind="{ disabled: !actionText, clearable:false }" class="!mt-0 w-full"
+                <FieldX
+                  :bind="{ readonly: !actionText }" class="!mt-0 w-full"
                   :value="item.komponen" @input="v=>item.komponen=v"
                   :errorText="formErrors.komponen?'failed':''" 
-                  label="" placeholder="Pilih Komponen"
+                  label="" placeholder="Tuliskan Komponen"
                   :hints="formErrors.komponen"
-                  :options="['Multi Job','Incentive','Jabatan','Penjualan','Lain - Lain']"
-                  valueField="key" displayField="key" :check="false"
                 />
               </td>
               <td class="p-2 border border-[#CACACA]">
