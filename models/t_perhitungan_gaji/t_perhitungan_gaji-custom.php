@@ -1273,8 +1273,27 @@ public function salaryOfKary($id, $periode_awal, $periode_akhir)
                 ->get()
                 ->keyBy('m_kary_id');
 
-            $tanggunganIds = $karyawans->pluck('tanggungan_id')->filter()->unique()->toArray();
-            $tanggunganList = m_general::whereIn('id', $tanggunganIds)->get()->keyBy('id');
+            $generalIds = collect()
+                ->merge($karyawans->pluck('tanggungan_id'))
+                ->merge($karyawans->pluck('jk_id'))
+                ->merge($karyawans->pluck('status_nikah_id'))
+                ->filter()
+                ->unique()
+                ->toArray();
+            $generalList = m_general::whereIn('id', $generalIds)->get()->keyBy('id');
+
+            // Ambil Master Pengaturan PPh 21 aktif (dari tabel m_pph & m_pph_det)
+            $masterPph = m_pph::with('m_pph_det')
+                ->where('is_active', true)
+                ->whereDate('tgl_pengaturan', '<=', $date_end)
+                ->orderBy('tgl_pengaturan', 'desc')
+                ->first();
+
+            // Biaya Jabatan (%) dari master m_pph (default 5%)
+            $costLevelPercent = ($masterPph && $masterPph->cost_level !== null) ? ((float)$masterPph->cost_level / 100) : 0.05;
+
+            // Tier / Lapisan Tarif Pajak dari m_pph_det
+            $tierList = $masterPph ? $masterPph->m_pph_det->sortBy('gaji_min')->values() : collect();
 
             $rows = [];
             $no = 1;
@@ -1282,10 +1301,32 @@ public function salaryOfKary($id, $periode_awal, $periode_akhir)
             foreach ($karyawans as $kary) {
                 $kartu = $kartuList[$kary->id] ?? null;
                 $npwpNo = $kartu->npwp_no ?? '-';
+                $hasNpwp = (!empty($npwpNo) && $npwpNo != '-' && strlen(trim($npwpNo)) > 5);
 
-                $tanggungan = $tanggunganList[$kary->tanggungan_id] ?? null;
+                $tanggungan = $generalList[$kary->tanggungan_id] ?? null;
                 $statusPtkp = $tanggungan->value ?? 'TK/0';
-                $nilaiPtkpSetahun = (float) (@$tanggungan->value_2 ?: 54000000);
+
+                // Hitung Nilai PTKP: Prioritaskan dari master m_pph jika tersedia
+                if ($masterPph) {
+                    $jkText = strtolower($generalList[$kary->jk_id]->value ?? 'pria');
+                    $nikahText = strtolower($generalList[$kary->status_nikah_id]->value ?? 'single');
+                    $isMenikah = (stripos($nikahText, 'nikah') !== false || stripos($nikahText, 'kawin') !== false);
+                    $isWanita = (stripos($jkText, 'wanita') !== false || stripos($jkText, 'perempuan') !== false);
+
+                    if ($isWanita) {
+                        $basePtkp = (float) ($isMenikah ? $masterPph->besaran_nikah_wanita : $masterPph->besaran_single_wanita);
+                    } else {
+                        $basePtkp = (float) ($isMenikah ? $masterPph->besaran_nikah_pria : $masterPph->besaran_single_pria);
+                    }
+
+                    preg_match('/\d+/', $statusPtkp, $matches);
+                    $jumlahTanggungan = isset($matches[0]) ? (int)$matches[0] : 0;
+                    $dependantAmt = (float) ($masterPph->dependant_amt ?? 4500000);
+
+                    $nilaiPtkpSetahun = $basePtkp + ($jumlahTanggungan * $dependantAmt);
+                } else {
+                    $nilaiPtkpSetahun = (float) (@$tanggungan->value_2 ?: 54000000);
+                }
 
                 $gajiPokok = (float) ($kary->m_standart_gaji->gaji_pokok ?? 0);
                 $tunjTetap = (float) ($kary->m_standart_gaji->tunjangan_tetap ?? 0);
@@ -1298,7 +1339,8 @@ public function salaryOfKary($id, $periode_awal, $periode_akhir)
 
                 $penghasilanBruto = $upahDasar + $premiBruto;
 
-                $biayaJabatan = min(500000, round(0.05 * $penghasilanBruto));
+                // Biaya Jabatan dinamis dari master m_pph (maksimal Rp 500.000/bulan)
+                $biayaJabatan = min(500000, round($costLevelPercent * $penghasilanBruto));
                 $jhtKaryawan = round(0.02 * $upahDasar);
                 $jpKaryawan  = round(0.01 * min($upahDasar, 10042300));
                 $totalPengurang = $biayaJabatan + $jhtKaryawan + $jpKaryawan;
@@ -1308,18 +1350,46 @@ public function salaryOfKary($id, $periode_awal, $periode_akhir)
 
                 $pkpSetahun = max(0, $nettoSetahun - $nilaiPtkpSetahun);
 
+                // Hitung PPh 21 Setahun Menggunakan Bracket m_pph_det (atau Fallback Progresif UU HPP)
                 $pph21Setahun = 0;
                 if ($pkpSetahun > 0) {
-                    if ($pkpSetahun <= 60000000) {
-                        $pph21Setahun = $pkpSetahun * 0.05;
-                    } elseif ($pkpSetahun <= 250000000) {
-                        $pph21Setahun = (60000000 * 0.05) + (($pkpSetahun - 60000000) * 0.15);
-                    } elseif ($pkpSetahun <= 500000000) {
-                        $pph21Setahun = (60000000 * 0.05) + (190000000 * 0.15) + (($pkpSetahun - 250000000) * 0.25);
-                    } elseif ($pkpSetahun <= 5000000000) {
-                        $pph21Setahun = (60000000 * 0.05) + (190000000 * 0.15) + (250000000 * 0.25) + (($pkpSetahun - 500000000) * 0.30);
+                    if ($tierList->isNotEmpty()) {
+                        $sisaPkp = $pkpSetahun;
+                        foreach ($tierList as $tier) {
+                            $min = (float) $tier->gaji_min;
+                            $max = (float) $tier->gaji_max;
+                            $ratePercent = $hasNpwp ? (float)$tier->npwp : (float)$tier->non_npwp;
+                            $rate = $ratePercent / 100;
+
+                            if ($max > 0) {
+                                $rentang = $max - $min;
+                                if ($sisaPkp > 0) {
+                                    $pkpDiTier = min($sisaPkp, $rentang);
+                                    $pph21Setahun += ($pkpDiTier * $rate);
+                                    $sisaPkp -= $pkpDiTier;
+                                }
+                            } else {
+                                if ($sisaPkp > 0) {
+                                    $pph21Setahun += ($sisaPkp * $rate);
+                                    $sisaPkp = 0;
+                                }
+                            }
+                        }
                     } else {
-                        $pph21Setahun = (60000000 * 0.05) + (190000000 * 0.15) + (250000000 * 0.25) + (4500000000 * 0.30) + (($pkpSetahun - 5000000000) * 0.35);
+                        if ($pkpSetahun <= 60000000) {
+                            $pph21Setahun = $pkpSetahun * 0.05;
+                        } elseif ($pkpSetahun <= 250000000) {
+                            $pph21Setahun = (60000000 * 0.05) + (($pkpSetahun - 60000000) * 0.15);
+                        } elseif ($pkpSetahun <= 500000000) {
+                            $pph21Setahun = (60000000 * 0.05) + (190000000 * 0.15) + (($pkpSetahun - 250000000) * 0.25);
+                        } elseif ($pkpSetahun <= 5000000000) {
+                            $pph21Setahun = (60000000 * 0.05) + (190000000 * 0.15) + (250000000 * 0.25) + (($pkpSetahun - 500000000) * 0.30);
+                        } else {
+                            $pph21Setahun = (60000000 * 0.05) + (190000000 * 0.15) + (250000000 * 0.25) + (4500000000 * 0.30) + (($pkpSetahun - 5000000000) * 0.35);
+                        }
+                        if (!$hasNpwp) {
+                            $pph21Setahun = $pph21Setahun * 1.20;
+                        }
                     }
                 }
 
