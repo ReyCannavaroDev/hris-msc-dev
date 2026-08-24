@@ -1621,4 +1621,355 @@ public function salaryOfKary($id, $periode_awal, $periode_akhir)
             return response()->json(['error' => $e->getMessage()], 500);
         }
     }
+
+    public function public_exportStatistikGaji()
+    {
+        try {
+            $req = request();
+            $periode_from = $req->periode_from ?: Carbon::now()->startOfMonth()->format('Y-m-d');
+            $periode_to   = $req->periode_to ?: Carbon::now()->endOfMonth()->format('Y-m-d');
+            
+            // Format YYYY-MM-DD
+            if (strlen($periode_from) == 7) $periode_from = Carbon::parse($periode_from . '-01')->startOfMonth()->format('Y-m-d');
+            if (strlen($periode_to) == 7)   $periode_to   = Carbon::parse($periode_to . '-01')->endOfMonth()->format('Y-m-d');
+
+            $groupBy = strtolower($req->group_by ?: 'unit'); // 'global', 'unit', 'divisi', 'dept', 'posisi'
+
+            // Ambil data karyawan aktif dengan relasi
+            $karyQuery = m_kary::with(['m_dir', 'm_divisi', 'm_dept', 'm_posisi', 'm_standart_gaji']);
+
+            if ($req->filled('m_dir_id') && $req->m_dir_id !== 'null' && $req->m_dir_id !== 'undefined') {
+                $karyQuery->where('m_dir_id', $req->m_dir_id);
+            }
+            if ($req->filled('m_divisi_id') && $req->m_divisi_id !== 'null' && $req->m_divisi_id !== 'undefined') {
+                $karyQuery->where('m_divisi_id', $req->m_divisi_id);
+            }
+            if ($req->filled('m_dept_id') && $req->m_dept_id !== 'null' && $req->m_dept_id !== 'undefined') {
+                $karyQuery->where('m_dept_id', $req->m_dept_id);
+            }
+            if ($req->filled('is_active') && $req->is_active !== 'null' && $req->is_active !== 'undefined') {
+                $isActive = filter_var($req->is_active, FILTER_VALIDATE_BOOLEAN);
+                $karyQuery->where('is_active', $isActive);
+            }
+
+            $karyawans = $karyQuery->get()->keyBy('id');
+            $karyIds = $karyawans->keys()->toArray();
+
+            if (empty($karyIds)) {
+                throw new \Exception("Tidak ada data karyawan yang sesuai dengan filter.");
+            }
+
+            // Coba ambil dari t_final_gaji_det jika sudah ada finalisasi di periode tersebut
+            $finalDetList = DB::table('t_final_gaji_det as fd')
+                ->join('t_final_gaji as f', 'fd.t_final_gaji_id', '=', 'f.id')
+                ->whereIn('fd.m_kary_id', $karyIds)
+                ->where(function($q) use ($periode_from, $periode_to) {
+                    $q->whereBetween('f.periode_awal', [$periode_from, $periode_to])
+                      ->orWhereBetween('f.periode_akhir', [$periode_from, $periode_to])
+                      ->orWhereBetween('fd.periode_in_date', [$periode_from, $periode_to]);
+                })
+                ->select('fd.*')
+                ->get();
+
+            $hasFinalGaji = $finalDetList->isNotEmpty();
+            $empStats = [];
+
+            if ($hasFinalGaji) {
+                $finalDetIds = $finalDetList->pluck('id')->toArray();
+                $rincianList = DB::table('t_final_gaji_det_rincian')
+                    ->whereIn('t_final_gaji_det_id', $finalDetIds)
+                    ->get()
+                    ->groupBy('t_final_gaji_det_id');
+
+                foreach ($finalDetList as $fd) {
+                    $kary = $karyawans[$fd->m_kary_id] ?? null;
+                    if (!$kary) continue;
+
+                    $rincian = $rincianList[$fd->id] ?? collect();
+                    $gajiPokok = 0;
+                    $tunjangan = 0;
+                    $lembur = 0;
+                    $potAbsen = 0;
+                    $potPinjaman = 0;
+                    $potStockLain = 0;
+
+                    foreach ($rincian as $r) {
+                        $label = strtolower($r->label . ' ' . $r->name);
+                        $val = (float) $r->value;
+                        $factor = trim($r->factor);
+
+                        if ($factor === '+' || $factor === '1' || $factor === 'TAMBAH') {
+                            if (stripos($label, 'pokok') !== false) {
+                                $gajiPokok += $val;
+                            } elseif (stripos($label, 'lembur') !== false) {
+                                $lembur += $val;
+                            } else {
+                                $tunjangan += $val;
+                            }
+                        } elseif ($factor === '-' || $factor === '-1' || $factor === 'KURANG') {
+                            if (stripos($label, 'absen') !== false || stripos($label, 'terlambat') !== false || stripos($label, 'tidak hadir') !== false || stripos($label, 'presensi') !== false) {
+                                $potAbsen += $val;
+                            } elseif (stripos($label, 'pinjam') !== false || stripos($label, 'kasbon') !== false || stripos($label, 'koperasi') !== false) {
+                                $potPinjaman += $val;
+                            } else {
+                                $potStockLain += $val;
+                            }
+                        }
+                    }
+
+                    if ($gajiPokok == 0 && $tunjangan == 0) {
+                        $gajiPokok = (float) ($kary->m_standart_gaji->gaji_pokok ?? 0);
+                        $tunjangan = (float) ($kary->m_standart_gaji->tunjangan_tetap ?? 0);
+                    }
+
+                    $netto = (float) $fd->netto;
+                    if ($netto == 0) {
+                        $netto = max(0, ($gajiPokok + $tunjangan + $lembur) - ($potAbsen + $potPinjaman + $potStockLain));
+                    }
+
+                    $empStats[] = [
+                        'kary_id' => $kary->id,
+                        'kary' => $kary,
+                        'gaji_pokok' => $gajiPokok,
+                        'tunjangan' => $tunjangan,
+                        'lembur' => $lembur,
+                        'pot_absen' => $potAbsen,
+                        'pot_pinjaman' => $potPinjaman,
+                        'pot_stock_lain' => $potStockLain,
+                        'total_potongan' => ($potAbsen + $potPinjaman + $potStockLain),
+                        'netto' => $netto,
+                    ];
+                }
+            } else {
+                // Fallback dinamis ke Master Standar Gaji
+                $standartGajiIds = $karyawans->pluck('m_standart_gaji_id')->filter()->unique()->toArray();
+                $sgDetList = DB::table('m_standart_gaji_det')
+                    ->whereIn('m_standart_gaji_id', $standartGajiIds)
+                    ->get()
+                    ->groupBy('m_standart_gaji_id');
+
+                foreach ($karyawans as $kary) {
+                    $gajiPokok = (float) ($kary->m_standart_gaji->gaji_pokok ?? 0);
+                    $tunjTetap = (float) ($kary->m_standart_gaji->tunjangan_tetap ?? 0);
+                    $uangMakan = (float) ($kary->m_standart_gaji->uang_makan ?? 0);
+                    $tunjPosisi = (float) ($kary->m_standart_gaji->tunjangan_posisi ?? 0);
+                    $tunjangan = $tunjTetap + $uangMakan + $tunjPosisi;
+                    $lembur = 0;
+                    $potAbsen = 0;
+                    $potPinjaman = 0;
+                    $potStockLain = 0;
+
+                    $sgDets = $sgDetList[$kary->m_standart_gaji_id] ?? collect();
+                    foreach ($sgDets as $det) {
+                        $komp = strtolower($det->komponen);
+                        $val = (float) $det->nilai;
+                        $faktor = trim($det->faktor);
+
+                        if ($faktor === '+' || $faktor === 'TAMBAH') {
+                            if (stripos($komp, 'lembur') !== false) {
+                                $lembur += $val;
+                            } else {
+                                $tunjangan += $val;
+                            }
+                        } elseif ($faktor === '-' || $faktor === 'KURANG') {
+                            if (stripos($komp, 'absen') !== false || stripos($komp, 'terlambat') !== false) {
+                                $potAbsen += $val;
+                            } elseif (stripos($komp, 'pinjam') !== false || stripos($komp, 'kasbon') !== false) {
+                                $potPinjaman += $val;
+                            } else {
+                                $potStockLain += $val;
+                            }
+                        }
+                    }
+
+                    $totalPotongan = $potAbsen + $potPinjaman + $potStockLain;
+                    $netto = max(0, ($gajiPokok + $tunjangan + $lembur) - $totalPotongan);
+
+                    $empStats[] = [
+                        'kary_id' => $kary->id,
+                        'kary' => $kary,
+                        'gaji_pokok' => $gajiPokok,
+                        'tunjangan' => $tunjangan,
+                        'lembur' => $lembur,
+                        'pot_absen' => $potAbsen,
+                        'pot_pinjaman' => $potPinjaman,
+                        'pot_stock_lain' => $potStockLain,
+                        'total_potongan' => $totalPotongan,
+                        'netto' => $netto,
+                    ];
+                }
+            }
+
+            // Pengelompokan (Grouping Data)
+            $grouped = collect($empStats)->groupBy(function($item) use ($groupBy) {
+                $k = $item['kary'];
+                if ($groupBy === 'global') return 'SELURUH PERUSAHAAN (GLOBAL)';
+                if ($groupBy === 'dept')   return $k->m_dept->nama ?? 'Tanpa Departemen';
+                if ($groupBy === 'divisi') return $k->m_divisi->nama ?? 'Tanpa Divisi';
+                if ($groupBy === 'posisi' || $groupBy === 'jabatan') return $k->m_posisi->desc_kerja ?? ($k->m_divisi->nama ?? 'Tanpa Jabatan');
+                return $k->m_dir->nama ?? 'Tanpa Unit'; // default: unit
+            });
+
+            $summaryRows = [];
+            $no = 1;
+            $allNettos = collect($empStats)->pluck('netto')->toArray();
+            $grandTotalKary = count($empStats);
+            $grandTotalPokok = collect($empStats)->sum('gaji_pokok');
+            $grandTotalTunj = collect($empStats)->sum('tunjangan');
+            $grandTotalLembur = collect($empStats)->sum('lembur');
+            $grandTotalPotAbsen = collect($empStats)->sum('pot_absen');
+            $grandTotalPotPinjam = collect($empStats)->sum('pot_pinjaman');
+            $grandTotalPotStock = collect($empStats)->sum('pot_stock_lain');
+            $grandTotalPot = collect($empStats)->sum('total_potongan');
+            $grandTotalNetto = collect($empStats)->sum('netto');
+            $grandAvgNetto = $grandTotalKary > 0 ? round($grandTotalNetto / $grandTotalKary) : 0;
+            $grandMaxNetto = !empty($allNettos) ? max($allNettos) : 0;
+            $grandMinNetto = !empty($allNettos) ? min($allNettos) : 0;
+
+            foreach ($grouped as $groupName => $items) {
+                $headcount = count($items);
+                $totPokok = collect($items)->sum('gaji_pokok');
+                $totTunj = collect($items)->sum('tunjangan');
+                $totLembur = collect($items)->sum('lembur');
+                $totPotAbsen = collect($items)->sum('pot_absen');
+                $totPotPinjam = collect($items)->sum('pot_pinjaman');
+                $totPotStock = collect($items)->sum('pot_stock_lain');
+                $totPot = collect($items)->sum('total_potongan');
+                $totNetto = collect($items)->sum('netto');
+                $nettoArray = collect($items)->pluck('netto')->toArray();
+                $avgNetto = $headcount > 0 ? round($totNetto / $headcount) : 0;
+                $maxNetto = !empty($nettoArray) ? max($nettoArray) : 0;
+                $minNetto = !empty($nettoArray) ? min($nettoArray) : 0;
+
+                $summaryRows[] = [
+                    'NO' => $no++,
+                    'GRUP' => $groupName,
+                    'TOTAL KARYAWAN' => $headcount,
+                    'TOTAL GAJI POKOK' => $totPokok,
+                    'TOTAL TUNJANGAN' => $totTunj,
+                    'TOTAL LEMBUR' => $totLembur,
+                    'POTONGAN ABSENSI' => $totPotAbsen,
+                    'POTONGAN PINJAMAN' => $totPotPinjam,
+                    'POTONGAN SELISIH STOCK / LAIN' => $totPotStock,
+                    'TOTAL POTONGAN' => $totPot,
+                    'TOTAL GAJI BERSIH (NETTO)' => $totNetto,
+                    'RATA-RATA GAJI' => $avgNetto,
+                    'GAJI TERTINGGI' => $maxNetto,
+                    'GAJI TERENDAH' => $minNetto,
+                ];
+            }
+
+            // Jika Request HTML View
+            if ($req->export === 'html' || strtolower($req->tipe ?? '') === 'html') {
+                $html = '<div class="statistik-container p-4" style="background:#f8fafc; font-family:Inter, sans-serif;">';
+                
+                // HEADER BANNER
+                $html .= '<div style="margin-bottom:20px; border-bottom:2px solid #e2e8f0; padding-bottom:12px;">';
+                $html .= '<h2 style="font-size:20px; font-weight:800; color:#1e293b; margin:0 0 4px 0;">LAPORAN STATISTIK PENGGAJIAN</h2>';
+                $html .= '<p style="font-size:13px; color:#64748b; margin:0;">Periode: <b>' . date('d/m/Y', strtotime($periode_from)) . ' s/d ' . date('d/m/Y', strtotime($periode_to)) . '</b> | Pengelompokan: <span style="text-transform:uppercase; color:#0284c7; font-weight:bold;">' . htmlspecialchars($groupBy) . '</span></p>';
+                $html .= '</div>';
+
+                // KPI SUMMARY CARDS
+                $html .= '<div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:16px; margin-bottom:24px;">';
+                
+                $cards = [
+                    ['label' => 'Total Pengeluaran Gaji', 'value' => 'Rp ' . number_format($grandTotalNetto, 0, ',', '.'), 'color' => '#2563eb', 'bg' => '#eff6ff', 'border' => '#bfdbfe'],
+                    ['label' => 'Rata-rata Gaji Karyawan', 'value' => 'Rp ' . number_format($grandAvgNetto, 0, ',', '.'), 'color' => '#059669', 'bg' => '#ecfdf5', 'border' => '#a7f3d0'],
+                    ['label' => 'Gaji Tertinggi (Max)', 'value' => 'Rp ' . number_format($grandMaxNetto, 0, ',', '.'), 'color' => '#7c3aed', 'bg' => '#f5f3ff', 'border' => '#ddd6fe'],
+                    ['label' => 'Gaji Terendah (Min)', 'value' => 'Rp ' . number_format($grandMinNetto, 0, ',', '.'), 'color' => '#d97706', 'bg' => '#fffbeb', 'border' => '#fde68a'],
+                    ['label' => 'Total Karyawan Terdata', 'value' => number_format($grandTotalKary, 0, ',', '.') . ' Orang', 'color' => '#475569', 'bg' => '#f1f5f9', 'border' => '#cbd5e1'],
+                ];
+
+                foreach ($cards as $c) {
+                    $html .= '<div style="background:' . $c['bg'] . '; border:1px solid ' . $c['border'] . '; border-radius:10px; padding:16px; box-shadow:0 1px 3px rgba(0,0,0,0.05);">';
+                    $html .= '<div style="font-size:12px; font-weight:600; color:#64748b; margin-bottom:6px;">' . $c['label'] . '</div>';
+                    $html .= '<div style="font-size:18px; font-weight:800; color:' . $c['color'] . ';">' . $c['value'] . '</div>';
+                    $html .= '</div>';
+                }
+                $html .= '</div>';
+
+                // TABEL STATISTIK REKAPITULASI
+                $html .= '<div style="overflow-x:auto; background:#ffffff; border:1px solid #e2e8f0; border-radius:10px; box-shadow:0 2px 4px rgba(0,0,0,0.04);">';
+                $html .= '<table style="width:100%; border-collapse:collapse; font-size:11px; text-align:left;">';
+                $html .= '<thead>';
+                $html .= '<tr style="background:#1e3a8a; color:#ffffff;">';
+                $html .= '<th style="padding:10px 8px; border:1px solid #3b82f6; text-align:center;">No</th>';
+                $html .= '<th style="padding:10px 8px; border:1px solid #3b82f6;">Kelompok / Grup (' . strtoupper($groupBy) . ')</th>';
+                $html .= '<th style="padding:10px 8px; border:1px solid #3b82f6; text-align:center;">Karyawan</th>';
+                $html .= '<th style="padding:10px 8px; border:1px solid #3b82f6; text-align:right;">Gaji Pokok</th>';
+                $html .= '<th style="padding:10px 8px; border:1px solid #3b82f6; text-align:right;">Tunjangan</th>';
+                $html .= '<th style="padding:10px 8px; border:1px solid #3b82f6; text-align:right;">Lembur</th>';
+                $html .= '<th style="padding:10px 8px; border:1px solid #3b82f6; text-align:right; background:#991b1b;">Pot. Absensi</th>';
+                $html .= '<th style="padding:10px 8px; border:1px solid #3b82f6; text-align:right; background:#991b1b;">Pot. Pinjaman</th>';
+                $html .= '<th style="padding:10px 8px; border:1px solid #3b82f6; text-align:right; background:#991b1b;">Pot. Stock/Lain</th>';
+                $html .= '<th style="padding:10px 8px; border:1px solid #3b82f6; text-align:right; background:#b91c1c;">Tot Potongan</th>';
+                $html .= '<th style="padding:10px 8px; border:1px solid #3b82f6; text-align:right; background:#047857;">Total Gaji Netto</th>';
+                $html .= '<th style="padding:10px 8px; border:1px solid #3b82f6; text-align:right; background:#0f766e;">Rata-Rata</th>';
+                $html .= '<th style="padding:10px 8px; border:1px solid #3b82f6; text-align:right;">Tertinggi</th>';
+                $html .= '<th style="padding:10px 8px; border:1px solid #3b82f6; text-align:right;">Terendah</th>';
+                $html .= '</tr></thead><tbody>';
+
+                foreach ($summaryRows as $r) {
+                    $html .= '<tr style="border-bottom:1px solid #e2e8f0;">';
+                    $html .= '<td style="padding:8px 6px; border:1px solid #e2e8f0; text-align:center;">' . $r['NO'] . '</td>';
+                    $html .= '<td style="padding:8px 6px; border:1px solid #e2e8f0; font-weight:700; color:#1e293b;">' . htmlspecialchars($r['GRUP']) . '</td>';
+                    $html .= '<td style="padding:8px 6px; border:1px solid #e2e8f0; text-align:center; font-weight:600;">' . $r['TOTAL KARYAWAN'] . '</td>';
+                    $html .= '<td style="padding:8px 6px; border:1px solid #e2e8f0; text-align:right;">Rp ' . number_format($r['TOTAL GAJI POKOK'], 0, ',', '.') . '</td>';
+                    $html .= '<td style="padding:8px 6px; border:1px solid #e2e8f0; text-align:right;">Rp ' . number_format($r['TOTAL TUNJANGAN'], 0, ',', '.') . '</td>';
+                    $html .= '<td style="padding:8px 6px; border:1px solid #e2e8f0; text-align:right;">Rp ' . number_format($r['TOTAL LEMBUR'], 0, ',', '.') . '</td>';
+                    $html .= '<td style="padding:8px 6px; border:1px solid #e2e8f0; text-align:right; color:#dc2626;">Rp ' . number_format($r['POTONGAN ABSENSI'], 0, ',', '.') . '</td>';
+                    $html .= '<td style="padding:8px 6px; border:1px solid #e2e8f0; text-align:right; color:#dc2626;">Rp ' . number_format($r['POTONGAN PINJAMAN'], 0, ',', '.') . '</td>';
+                    $html .= '<td style="padding:8px 6px; border:1px solid #e2e8f0; text-align:right; color:#dc2626;">Rp ' . number_format($r['POTONGAN SELISIH STOCK / LAIN'], 0, ',', '.') . '</td>';
+                    $html .= '<td style="padding:8px 6px; border:1px solid #e2e8f0; text-align:right; font-weight:600; color:#b91c1c;">Rp ' . number_format($r['TOTAL POTONGAN'], 0, ',', '.') . '</td>';
+                    $html .= '<td style="padding:8px 6px; border:1px solid #e2e8f0; text-align:right; font-weight:700; color:#047857;">Rp ' . number_format($r['TOTAL GAJI BERSIH (NETTO)'], 0, ',', '.') . '</td>';
+                    $html .= '<td style="padding:8px 6px; border:1px solid #e2e8f0; text-align:right; font-weight:600; color:#0f766e;">Rp ' . number_format($r['RATA-RATA GAJI'], 0, ',', '.') . '</td>';
+                    $html .= '<td style="padding:8px 6px; border:1px solid #e2e8f0; text-align:right;">Rp ' . number_format($r['GAJI TERTINGGI'], 0, ',', '.') . '</td>';
+                    $html .= '<td style="padding:8px 6px; border:1px solid #e2e8f0; text-align:right;">Rp ' . number_format($r['GAJI TERENDAH'], 0, ',', '.') . '</td>';
+                    $html .= '</tr>';
+                }
+
+                // TOTAL GRAND FOOTER
+                $html .= '</tbody><tfoot><tr style="background:#f1f5f9; font-weight:bold; border-top:2px solid #64748b;">';
+                $html .= '<td colspan="2" style="padding:10px 8px; border:1px solid #cbd5e1; text-align:right; font-size:12px;">GRAND TOTAL:</td>';
+                $html .= '<td style="padding:10px 8px; border:1px solid #cbd5e1; text-align:center;">' . number_format($grandTotalKary, 0, ',', '.') . '</td>';
+                $html .= '<td style="padding:10px 8px; border:1px solid #cbd5e1; text-align:right;">Rp ' . number_format($grandTotalPokok, 0, ',', '.') . '</td>';
+                $html .= '<td style="padding:10px 8px; border:1px solid #cbd5e1; text-align:right;">Rp ' . number_format($grandTotalTunj, 0, ',', '.') . '</td>';
+                $html .= '<td style="padding:10px 8px; border:1px solid #cbd5e1; text-align:right;">Rp ' . number_format($grandTotalLembur, 0, ',', '.') . '</td>';
+                $html .= '<td style="padding:10px 8px; border:1px solid #cbd5e1; text-align:right; color:#dc2626;">Rp ' . number_format($grandTotalPotAbsen, 0, ',', '.') . '</td>';
+                $html .= '<td style="padding:10px 8px; border:1px solid #cbd5e1; text-align:right; color:#dc2626;">Rp ' . number_format($grandTotalPotPinjam, 0, ',', '.') . '</td>';
+                $html .= '<td style="padding:10px 8px; border:1px solid #cbd5e1; text-align:right; color:#dc2626;">Rp ' . number_format($grandTotalPotStock, 0, ',', '.') . '</td>';
+                $html .= '<td style="padding:10px 8px; border:1px solid #cbd5e1; text-align:right; color:#b91c1c;">Rp ' . number_format($grandTotalPot, 0, ',', '.') . '</td>';
+                $html .= '<td style="padding:10px 8px; border:1px solid #cbd5e1; text-align:right; color:#047857; font-size:12px;">Rp ' . number_format($grandTotalNetto, 0, ',', '.') . '</td>';
+                $html .= '<td style="padding:10px 8px; border:1px solid #cbd5e1; text-align:right; color:#0f766e;">Rp ' . number_format($grandAvgNetto, 0, ',', '.') . '</td>';
+                $html .= '<td style="padding:10px 8px; border:1px solid #cbd5e1; text-align:right;">Rp ' . number_format($grandMaxNetto, 0, ',', '.') . '</td>';
+                $html .= '<td style="padding:10px 8px; border:1px solid #cbd5e1; text-align:right;">Rp ' . number_format($grandMinNetto, 0, ',', '.') . '</td>';
+                $html .= '</tr></tfoot></table></div></div>';
+
+                return response($html, 200)->header('Content-Type', 'text/html');
+            }
+
+            // Export Excel
+            $export = new class(collect($summaryRows)) implements \Maatwebsite\Excel\Concerns\FromCollection, \Maatwebsite\Excel\Concerns\WithHeadings, \Maatwebsite\Excel\Concerns\WithStyles {
+                protected $data;
+                public function __construct($data) { $this->data = $data; }
+                public function collection() { return $this->data; }
+                public function headings(): array {
+                    return [
+                        'NO', 'GRUP / KELOMPOK', 'TOTAL KARYAWAN', 'TOTAL GAJI POKOK', 'TOTAL TUNJANGAN',
+                        'TOTAL LEMBUR', 'POTONGAN ABSENSI', 'POTONGAN PINJAMAN', 'POTONGAN SELISIH STOCK / LAIN',
+                        'TOTAL POTONGAN', 'TOTAL GAJI BERSIH (NETTO)', 'RATA-RATA GAJI', 'GAJI TERTINGGI', 'GAJI TERENDAH'
+                    ];
+                }
+                public function styles(Worksheet $sheet) {
+                    $highestColumn = $sheet->getHighestColumn();
+                    $sheet->getStyle('A1:' . $highestColumn . '1')->getFont()->setBold(true);
+                    return [];
+                }
+            };
+
+            return Excel::download($export, "laporan_statistik_penggajian_{$periode_from}_{$periode_to}.xlsx");
+        } catch (\Exception $e) {
+            return response()->json(['error' => $e->getMessage()], 500);
+        }
+    }
 }
