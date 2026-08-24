@@ -6,6 +6,8 @@ const route = useRoute()
 const store = inject('store')
 const swal = inject('swal')
 
+const exportHtml = ref(false)
+const dataThr = ref([])
 const isRequesting = ref(false)
 const formErrors = ref({})
 
@@ -112,34 +114,65 @@ const onGenerate = async () => {
 
   const queryStr = new URLSearchParams(params).toString()
 
-  try {
-    //Kunci tombol dan munculkan loading overlay
-    isRequesting.value = true
+  if (values.tipe.toLowerCase() === 'excel') {
+    exportHtml.value = false
+    try {
+      //Kunci tombol dan munculkan loading overlay
+      isRequesting.value = true
 
-    const url = `${store.server.url_backend}/public/presensi_absensi/exportTidakHadir?${queryStr}`
-    const res = await fetch(url)
-    if (!res.ok) throw new Error('Gagal mengunduh file Excel Laporan Karyawan Tidak Hadir')
-    const blob = await res.blob()
-    const downloadUrl = window.URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = downloadUrl
-    const labelPeriod = values.tipe_periode === 'Bulan' 
-      ? values.periode 
-      : `${formatDateToYmd(values.date_start)}_sd_${formatDateToYmd(values.date_end)}`
-    a.download = `Laporan_Karyawan_Tidak_Hadir_${labelPeriod}.xlsx`
-    document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
-    window.URL.revokeObjectURL(downloadUrl)
-  } catch (err) {
-    console.error('Download Error:', err)
-    swal.fire({
-      icon: 'error',
-      text: err.message || err
-    })
-  }finally {
-    // Kembalikan tombol ke keadaan semula saat sukses maupun error
-    isRequesting.value = false 
+      const url = `${store.server.url_backend}/public/presensi_absensi/exportTidakHadir?${queryStr}`
+      const res = await fetch(url)
+      if (!res.ok) throw new Error('Gagal mengunduh file Excel Laporan Karyawan Tidak Hadir')
+      const blob = await res.blob()
+      const downloadUrl = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = downloadUrl
+      const labelPeriod = values.tipe_periode === 'Bulan' 
+        ? values.periode 
+        : `${formatDateToYmd(values.date_start)}_sd_${formatDateToYmd(values.date_end)}`
+      a.download = `Laporan_Karyawan_Tidak_Hadir_${labelPeriod}.xlsx`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      window.URL.revokeObjectURL(downloadUrl)
+    } catch (err) {
+      console.error('Download Error:', err)
+      swal.fire({
+        icon: 'error',
+        text: err.message || err
+      })
+    }finally {
+      // Kembalikan tombol ke keadaan semula saat sukses maupun error
+      isRequesting.value = false 
+    }
+  } else {
+    // HTML Preview
+    isRequesting.value = true
+    try {
+      const htmlParams = { ...params, tipe: 'html' }
+      const htmlQueryStr = new URLSearchParams(htmlParams).toString()
+
+      const url = `${store.server.url_backend}/public/presensi_absensi/exportTidakHadir?${htmlQueryStr}`
+      const res = await fetch(url, {
+        headers: {
+          'Content-Type': 'Application/json',
+          Authorization: `${store.user.token_type} ${store.user.token}`
+        }
+      })
+
+      if (!res.ok) throw new Error('Gagal menarik data karyawan tidak hadir')
+      const responseJson = await res.json()
+      dataTidakHadir.value = responseJson.data || []
+      exportHtml.value = true
+    } catch (err) {
+      console.error('Preview Error:', err)
+      swal.fire({
+        icon: 'error',
+        text: err.message || err
+      })
+    } finally {
+      isRequesting.value = false
+    }
   }
 
 }

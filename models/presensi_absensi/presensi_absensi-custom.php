@@ -2362,8 +2362,8 @@ class presensi_absensi extends \App\Models\BasicModels\presensi_absensi
           return response()->json(['error' => $e->getMessage()], 500);
       }
   }
-
-    public function public_exportTidakHadir()
+  
+  public function public_exportTidakHadir()
     {
         try {
             $req = request();
@@ -2582,6 +2582,16 @@ class presensi_absensi extends \App\Models\BasicModels\presensi_absensi
             $fileNameLabel = $tipe_periode === 'Bulan' 
                 ? Carbon::parse($date_start)->format('Y-m') 
                 : "{$date_start}_sd_{$date_end}";
+
+            if (strtolower($req->input('tipe')) === 'html') {
+                return response()->json([
+                    'status' => 'success',
+                    'data' => collect($rows)->map(function($item) {
+                        unset($item['IS_ALPHA']); 
+                        return $item;
+                    })
+                ]);
+            }
 
             return \Maatwebsite\Excel\Facades\Excel::download($export, "laporan_tidak_hadir_{$fileNameLabel}.xlsx");
 

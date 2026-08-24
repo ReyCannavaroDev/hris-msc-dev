@@ -14,7 +14,7 @@
           <label class="font-semibold">Tipe Export</label>
           <FieldSelect :bind="{ readonly: !actionText }" class="w-full py-2 !mt-0" :value="values.tipe"
             :errorText="formErrors.tipe ? 'failed' : ''" @input="v => values.tipe = v" :hints="formErrors.tipe"
-            :check="false" label="" :options="['Excel']" placeholder="Pilih Tipe Export" valueField="key"
+            :check="false" label="" :options="['Excel', 'HTML']" placeholder="Pilih Tipe Export" valueField="key"
             displayField="key" />
         </div>
         
@@ -196,7 +196,81 @@
       <!-- ACTION BUTTON START -->
       <div class="overflow-x-auto mt-6 mb-4 px-4" v-show="exportHtml">
         <hr>
-        <div id="exportTable" class="w-[100%] mt-6 h-screen overflow-auto">
+        <hr class="mb-6">
+        <div class="flex justify-between items-center mb-3">
+          <h2 class="font-bold text-gray-700 text-base">Hasil Laporan Karawan Tidak Hadir</h2>
+          <span class="text-xs bg-blue-50 text-blue-700 border border-blue-200 px-3 py-1 rounded">
+            Total Data: {{ dataThr.length }} entri
+          </span>
+        </div>
+
+        <div id="exportTable" class="w-full overflow-auto border border-[#CACACA] rounded-md">
+          <table class="w-full overflow-x-auto table-auto border border-[#CACACA] text-sm">
+            <thead>
+              <tr class="border">
+                <!-- Kolom Umum (Selalu Tampil) -->
+                <th class="text-[#8F8F8F] font-semibold text-[14px] px-3 py-[14.5px] text-center border bg-[#f8f8f8] border-[#CACACA] w-[4%]">No</th>
+                <th class="text-[#8F8F8F] font-semibold text-[14px] px-3 py-[14.5px] text-left border bg-[#f8f8f8] border-[#CACACA] w-[12%]">ID Karyawan</th>
+                <th class="text-[#8F8F8F] font-semibold text-[14px] px-3 py-[14.5px] text-left border bg-[#f8f8f8] border-[#CACACA] w-[16%]">Nama Karyawan</th>
+                <th class="text-[#8F8F8F] font-semibold text-[14px] px-3 py-[14.5px] text-left border bg-[#f8f8f8] border-[#CACACA] w-[12%]">Unit</th>
+                <th class="text-[#8F8F8F] font-semibold text-[14px] px-3 py-[14.5px] text-left border bg-[#f8f8f8] border-[#CACACA] w-[12%]">Jabatan</th>
+
+                <!-- Kolom Khusus: Rentang Tanggal -->
+                <th v-if="values.tipe_periode === 'Rentang Tanggal'" class="text-[#8F8F8F] font-semibold text-[14px] px-3 py-[14.5px] text-center border bg-[#f8f8f8] border-[#CACACA] w-[10%]">Tanggal</th>
+                <th v-if="values.tipe_periode === 'Rentang Tanggal'" class="text-[#8F8F8F] font-semibold text-[14px] px-3 py-[14.5px] text-center border bg-[#f8f8f8] border-[#CACACA] w-[10%]">Hari</th>
+                <th v-if="values.tipe_periode === 'Rentang Tanggal'" class="text-[#8F8F8F] font-semibold text-[14px] px-3 py-[14.5px] text-left border bg-[#f8f8f8] border-[#CACACA] w-[24%]">Keterangan</th>
+
+                <!-- Kolom Khusus: Bulan -->
+                <th v-if="values.tipe_periode === 'Bulan'" class="text-[#8F8F8F] font-semibold text-[14px] px-3 py-[14.5px] text-center border bg-[#f8f8f8] border-[#CACACA] w-[10%]">Periode</th>
+                <th v-if="values.tipe_periode === 'Bulan'" class="text-[#8F8F8F] font-semibold text-[14px] px-3 py-[14.5px] text-center border bg-[#f8f8f8] border-[#CACACA] w-[7%]">Hari Kerja</th>
+                <th v-if="values.tipe_periode === 'Bulan'" class="text-[#8F8F8F] font-semibold text-[14px] px-3 py-[14.5px] text-center border bg-[#f8f8f8] border-[#CACACA] w-[7%]">Tdk Hadir</th>
+                <th v-if="values.tipe_periode === 'Bulan'" class="text-[#8F8F8F] font-semibold text-[14px] px-3 py-[14.5px] text-center border bg-[#f8f8f8] border-[#CACACA] w-[7%]">Izin</th>
+                <th v-if="values.tipe_periode === 'Bulan'" class="text-[#8F8F8F] font-semibold text-[14px] px-3 py-[14.5px] text-center border bg-[#f8f8f8] border-[#CACACA] w-[7%]">Alpha</th>
+                <th v-if="values.tipe_periode === 'Bulan'" class="text-[#8F8F8F] font-semibold text-[14px] px-3 py-[14.5px] text-left border bg-[#f8f8f8] border-[#CACACA] w-[16%]">Ringkasan</th>
+              </tr>
+            </thead>
+            <tbody>
+              <!-- Looping Data -->
+              <tr v-for="(item, idx) in dataThr" :key="idx" 
+                  :class="['hover:bg-amber-50 border-t border-[#CACACA]']">
+                
+                <!-- Data Umum -->
+                <td class="text-center border border-[#CACACA] px-3 py-3 text-gray-700">{{ idx + 1 }}</td>
+                <td class="border border-[#CACACA] px-3 py-3 text-gray-700 font-mono text-xs">{{ item['ID KARYAWAN'] }}</td>
+                <td class="border border-[#CACACA] px-3 py-3 font-medium text-gray-900">{{ item['NAMA KARYAWAN'] }}</td>
+                <td class="border border-[#CACACA] px-3 py-3 text-gray-600">{{ item['UNIT'] }}</td>
+                <td class="border border-[#CACACA] px-3 py-3 text-gray-600">{{ item['JABATAN'] }}</td>
+
+                <!-- Data Khusus: Rentang Tanggal -->
+                <td v-if="values.tipe_periode === 'Rentang Tanggal'" class="text-center border border-[#CACACA] px-3 py-3 text-gray-600">{{ item['TANGGAL'] }}</td>
+                <td v-if="values.tipe_periode === 'Rentang Tanggal'" class="text-center border border-[#CACACA] px-3 py-3 text-gray-600">{{ item['HARI'] }}</td>
+                <td v-if="values.tipe_periode === 'Rentang Tanggal'" class="border border-[#CACACA] px-3 py-3">
+                  <span v-if="item['KETERANGAN'] !== '-'" class="bg-indigo-100 text-indigo-800 px-2 py-0.5 rounded text-xs font-medium">
+                    {{ item['KETERANGAN'] }}
+                  </span>
+                  <span v-else class="bg-red-100 text-red-800 px-2 py-0.5 rounded text-xs font-bold">
+                    Alpha
+                  </span>
+                </td>
+
+                <!-- Data Khusus: Bulan -->
+                <td v-if="values.tipe_periode === 'Bulan'" class="text-center border border-[#CACACA] px-3 py-3 text-gray-600">{{ item['PERIODE'] }}</td>
+                <td v-if="values.tipe_periode === 'Bulan'" class="text-center border border-[#CACACA] px-3 py-3 text-gray-600 font-semibold">{{ item['HARI KERJA'] }}</td>
+                <td v-if="values.tipe_periode === 'Bulan'" class="text-center border border-[#CACACA] px-3 py-3 text-gray-800 font-bold">{{ item['TOTAL TIDAK HADIR'] }}</td>
+                <td v-if="values.tipe_periode === 'Bulan'" class="text-center border border-[#CACACA] px-3 py-3 text-orange-600 font-bold">{{ item['TOTAL IZIN'] }}</td>
+                <td v-if="values.tipe_periode === 'Bulan'" class="text-center border border-[#CACACA] px-3 py-3 text-red-600 font-bold">{{ item['TOTAL ALPHA'] }}</td>
+                <td v-if="values.tipe_periode === 'Bulan'" class="border border-[#CACACA] px-3 py-3 text-gray-600 text-xs">{{ item['RINGKASAN'] }}</td>
+              </tr>
+              
+              <!-- Tampilan Jika Data Kosong -->
+              <tr v-if="!dataThr.length">
+                <!-- Gunakan colspan dinamis berdasarkan mode yang dipilih -->
+                <td :colspan="values.tipe_periode === 'Rentang Tanggal' ? 8 : 11" class="text-center text-gray-500 py-12 italic border border-[#CACACA] bg-gray-50">
+                  Tidak ada data karyawan tidak hadir pada periode dan filter terpilih.
+                </td>
+              </tr>
+            </tbody>
+          </table>
         </div>
       </div>
 
