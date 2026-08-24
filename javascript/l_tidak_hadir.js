@@ -162,7 +162,7 @@ const onGenerate = async () => {
 
       if (!res.ok) throw new Error('Gagal menarik data karyawan tidak hadir')
       const responseJson = await res.json()
-      dataTidakHadir.value = responseJson.data || []
+      dataThr.value = responseJson.data || []
       exportHtml.value = true
     } catch (err) {
       console.error('Preview Error:', err)

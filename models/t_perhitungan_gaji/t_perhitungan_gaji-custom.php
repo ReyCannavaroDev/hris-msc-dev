@@ -343,19 +343,20 @@ $gaji_harian = 0;
 }
 
 if ($not_attend > 0) {
+  $formattedDays = (fmod((float)$not_attend, 1) !== 0.0) ? number_format((float)$not_attend, 1, ',', '.') : (int)$not_attend;
   if ($periode_gaji === 'HARIAN') {
-    $value = (int) ($gaji_harian * (int) $not_attend);
+    $value = (int) round($gaji_harian * (float) $not_attend);
     $defaultColumns[] = [
-    'label' => "Potongan Tidak Masuk Kerja ($not_attend Hari x Rp " . number_format($gaji_harian,0,',','.') . ")",
+    'label' => "Potongan Tidak Masuk Kerja ($formattedDays Hari x Rp " . number_format($gaji_harian,0,',','.') . ")",
     'factor' => '-',
     'value' => (int) $value,
     'type' => 'Harian',
     'can_adjust' => 1
   ];
 } else { // BULANAN
-$value = (int) ($gaji_harian * 1.5 * (int) $not_attend);
+$value = (int) round($gaji_harian * 1.5 * (float) $not_attend);
 $defaultColumns[] = [
-'label' => "Potongan Tidak Masuk Kerja ($not_attend Hari x Rp " . number_format($gaji_harian,0,',','.') . " x 1.5)",
+'label' => "Potongan Tidak Masuk Kerja ($formattedDays Hari x Rp " . number_format($gaji_harian,0,',','.') . " x 1.5)",
 'factor' => '-',
 'value' => (int) $value,
 'type' => 'Bulanan',
@@ -834,9 +835,23 @@ public function salaryOfKary($id, $periode_awal, $periode_akhir)
                     ->get();
 
                     $cutiDates = [];
+                    $cutiApprovalPercent = [];
                     foreach ($cuti as $c) {
+                      $approvalNote = generate_approval_log::where('trx_table', 't_cuti')
+                        ->where('trx_id', $c->id)
+                        ->where('action_type', 'APPROVED')
+                        ->orderBy('id', 'desc')
+                        ->value('action_note');
+
+                      $approvePct = 100;
+                      if ($approvalNote && preg_match('/(\d+)\s*%/i', $approvalNote, $matches)) {
+                        $approvePct = min(100, max(0, (int)$matches[1]));
+                      }
+
                       foreach (CarbonPeriod::create($c->date_from, $c->date_to) as $tgl) {
-                        $cutiDates[$tgl->format("Y-m-d")] = $c->keterangan ?? "CUTI";
+                        $tglStr = $tgl->format("Y-m-d");
+                        $cutiDates[$tglStr] = $c->keterangan ?? "CUTI";
+                        $cutiApprovalPercent[$tglStr] = $approvePct;
                       }
                     }
                     // dd($cutiDates);
@@ -882,8 +897,12 @@ public function salaryOfKary($id, $periode_awal, $periode_akhir)
                       $data = $presensi[$key] ?? null;
 
                       $status = $data?->status ?? "NOT ATTEND";
+                      $is_cuti_day = false;
+                      $cuti_app_pct = 100;
                       if (isset($cutiDates[$key])) {
                         $status = $cutiDates[$key];
+                        $is_cuti_day = true;
+                        $cuti_app_pct = $cutiApprovalPercent[$key] ?? 100;
                       }
                       // dd($tanggal->translatedFormat('l'));
 
@@ -1016,6 +1035,28 @@ public function salaryOfKary($id, $periode_awal, $periode_akhir)
 
                           if ($tipe === "KERJA" && $status === "WORKING" && !$is_before_join) {
                             $tidak_absen_pulang++;
+                          }
+
+                          // --- Potongan otomatis untuk cuti/dispensasi yang di-approve tidak 100% (misal Approve 50%) ---
+                          if ($is_cuti_day && $tipe === 'KERJA' && !$is_before_join && $cuti_app_pct < 100) {
+                            $unapprovedRatio = (100 - $cuti_app_pct) / 100;
+                            $not_attend_days += $unapprovedRatio;
+
+                            if (
+                              $data &&
+                              $data->t_jadwal_kerja_det_hari?->waktu_mulai &&
+                              $data->t_jadwal_kerja_det_hari?->waktu_selesai
+                            ) {
+                              $mulai = Carbon::parse(
+                                $data->t_jadwal_kerja_det_hari->waktu_mulai
+                              );
+                              $selesai = Carbon::parse(
+                                $data->t_jadwal_kerja_det_hari->waktu_selesai
+                              );
+                              $total_jam_tidak_hadir += max(1, $selesai->diffInHours($mulai) - 1) * $unapprovedRatio;
+                            } else {
+                              $total_jam_tidak_hadir += 8 * $unapprovedRatio;
+                            }
                           }
 
                           $hasil[] = [
