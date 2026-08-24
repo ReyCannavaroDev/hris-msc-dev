@@ -1943,12 +1943,13 @@ public function salaryOfKary($id, $periode_awal, $periode_akhir)
                 $html .= '<td style="padding:10px 8px; border:1px solid #cbd5e1; text-align:right; color:#0f766e;">Rp ' . number_format($grandAvgNetto, 0, ',', '.') . '</td>';
                 $html .= '<td style="padding:10px 8px; border:1px solid #cbd5e1; text-align:right;">Rp ' . number_format($grandMaxNetto, 0, ',', '.') . '</td>';
                 $html .= '<td style="padding:10px 8px; border:1px solid #cbd5e1; text-align:right;">Rp ' . number_format($grandMinNetto, 0, ',', '.') . '</td>';
-                $html .= '</tr></tfoot></table></div></div>';
-
-                return response($html, 200)->header('Content-Type', 'text/html');
+                // Simpan template HTML untuk render View & PDF
+                if ($req->export === 'html' || strtolower($req->tipe ?? '') === 'html') {
+                    return response($html, 200)->header('Content-Type', 'text/html');
+                }
             }
 
-            // Export Excel
+            // Export Excel / PDF Dataset
             $export = new class(collect($summaryRows)) implements \Maatwebsite\Excel\Concerns\FromCollection, \Maatwebsite\Excel\Concerns\WithHeadings, \Maatwebsite\Excel\Concerns\WithStyles {
                 protected $data;
                 public function __construct($data) { $this->data = $data; }
@@ -1966,6 +1967,16 @@ public function salaryOfKary($id, $periode_awal, $periode_akhir)
                     return [];
                 }
             };
+
+            // Jika Request PDF
+            if ($req->export === 'pdf' || strtolower($req->tipe ?? '') === 'pdf') {
+                try {
+                    return Excel::download($export, "laporan_statistik_penggajian_{$periode_from}_{$periode_to}.pdf", \Maatwebsite\Excel\Excel::DOMPDF);
+                } catch (\Exception $ex) {
+                    $printHtml = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Laporan Statistik Penggajian (' . $periode_from . ' s/d ' . $periode_to . ')</title><style>@page { size: landscape; margin: 8mm; } body { font-family: "Segoe UI", Arial, sans-serif; font-size: 11px; color: #1e293b; margin: 0; padding: 10px; } @media print { .no-print { display: none !important; } body { padding: 0; } }</style></head><body><div class="no-print" style="margin-bottom:15px; padding:10px 16px; background:#1e293b; color:white; border-radius:6px; display:flex; justify-content:space-between; align-items:center;"><span style="font-weight:bold; font-size:13px;">Pratinjau PDF Laporan Statistik Penggajian</span><div><button onclick="window.print()" style="background:#2563eb; color:white; border:none; padding:8px 16px; border-radius:4px; font-weight:bold; cursor:pointer;">🖨️ Cetak / Save to PDF</button><button onclick="window.close()" style="background:#64748b; color:white; border:none; padding:8px 12px; border-radius:4px; margin-left:8px; cursor:pointer;">Tutup</button></div></div>' . $html . '<script>window.onload = function() { setTimeout(function() { window.print(); }, 500); };</script></body></html>';
+                    return response($printHtml, 200)->header('Content-Type', 'text/html');
+                }
+            }
 
             return Excel::download($export, "laporan_statistik_penggajian_{$periode_from}_{$periode_to}.xlsx");
         } catch (\Exception $e) {

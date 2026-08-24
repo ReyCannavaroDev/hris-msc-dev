@@ -188,8 +188,9 @@
           </template>
           <template v-else>
             <icon v-if="values.tipe?.toLowerCase() === 'html'" fa="chart-bar" />
+            <icon v-else-if="values.tipe?.toLowerCase() === 'pdf'" fa="file-pdf" />
             <icon v-else fa="file-excel" />
-            <span>{{ values.tipe?.toLowerCase() === 'html' ? 'Tampilkan Statistik' : 'Export Excel' }}</span>
+            <span>{{ values.tipe?.toLowerCase() === 'html' ? 'Tampilkan Statistik' : (values.tipe?.toLowerCase() === 'pdf' ? 'Export PDF' : 'Export Excel') }}</span>
           </template>
         </button>
       </div>

@@ -100,6 +100,9 @@ const onGenerate = async () => {
       if (targetDiv) {
         targetDiv.innerHTML = htmlText
       }
+    } else if (values.tipe?.toLowerCase() === 'pdf') {
+      exportHtml.value = false
+      window.open(url, '_blank')
     } else {
       exportHtml.value = false
       const res = await fetch(url)
