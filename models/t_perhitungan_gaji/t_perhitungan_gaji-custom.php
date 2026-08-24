@@ -1943,13 +1943,123 @@ public function salaryOfKary($id, $periode_awal, $periode_akhir)
                 $html .= '<td style="padding:10px 8px; border:1px solid #cbd5e1; text-align:right; color:#0f766e;">Rp ' . number_format($grandAvgNetto, 0, ',', '.') . '</td>';
                 $html .= '<td style="padding:10px 8px; border:1px solid #cbd5e1; text-align:right;">Rp ' . number_format($grandMaxNetto, 0, ',', '.') . '</td>';
                 $html .= '<td style="padding:10px 8px; border:1px solid #cbd5e1; text-align:right;">Rp ' . number_format($grandMinNetto, 0, ',', '.') . '</td>';
-                // Simpan template HTML untuk render View & PDF
+                // Jika Request HTML View
                 if ($req->export === 'html' || strtolower($req->tipe ?? '') === 'html') {
                     return response($html, 200)->header('Content-Type', 'text/html');
                 }
+
+                // Jika Request PDF (Tampilan Dokumen Lanskap Lengkap dengan KPI Cards & Tabel Terformat)
+                if ($req->export === 'pdf' || strtolower($req->tipe ?? '') === 'pdf') {
+                    $printHtml = '<!DOCTYPE html>
+                    <html lang="id">
+                    <head>
+                        <meta charset="utf-8">
+                        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                        <title>Laporan Statistik Penggajian (' . $periode_from . ' s/d ' . $periode_to . ')</title>
+                        <style>
+                            @page {
+                                size: A4 landscape;
+                                margin: 8mm 10mm 10mm 10mm;
+                            }
+                            * {
+                                box-sizing: border-box;
+                                -webkit-print-color-adjust: exact !important;
+                                print-color-adjust: exact !important;
+                            }
+                            body {
+                                font-family: "Segoe UI", -apple-system, BlinkMacSystemFont, Roboto, Helvetica, Arial, sans-serif;
+                                font-size: 10px;
+                                color: #1e293b;
+                                background-color: #f1f5f9;
+                                margin: 0;
+                                padding: 15px;
+                            }
+                            .report-paper {
+                                max-width: 100%;
+                                margin: 0 auto;
+                                background: #ffffff;
+                                padding: 20px 24px;
+                                border-radius: 8px;
+                                box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+                            }
+                            .no-print-bar {
+                                max-width: 100%;
+                                margin: 0 auto 15px auto;
+                                padding: 10px 18px;
+                                background: #0f172a;
+                                color: #ffffff;
+                                border-radius: 8px;
+                                display: flex;
+                                justify-content: space-between;
+                                align-items: center;
+                                box-shadow: 0 2px 4px rgba(0,0,0,0.15);
+                            }
+                            .btn-print {
+                                background: #2563eb;
+                                hover:background: #1d4ed8;
+                                color: #ffffff;
+                                border: none;
+                                padding: 8px 18px;
+                                border-radius: 5px;
+                                font-weight: 600;
+                                font-size: 12px;
+                                cursor: pointer;
+                                transition: all 0.2s;
+                            }
+                            .btn-close {
+                                background: #475569;
+                                color: #ffffff;
+                                border: none;
+                                padding: 8px 14px;
+                                border-radius: 5px;
+                                font-size: 12px;
+                                margin-left: 8px;
+                                cursor: pointer;
+                            }
+                            @media print {
+                                body {
+                                    background: #ffffff !important;
+                                    padding: 0 !important;
+                                }
+                                .report-paper {
+                                    padding: 0 !important;
+                                    box-shadow: none !important;
+                                    border: none !important;
+                                }
+                                .no-print-bar {
+                                    display: none !important;
+                                }
+                            }
+                        </style>
+                    </head>
+                    <body>
+                        <div class="no-print-bar">
+                            <div>
+                                <span style="font-weight:700; font-size:14px; letter-spacing:0.3px;">📄 Pratinjau Dokumen PDF — Laporan Statistik Penggajian</span>
+                                <span style="font-size:11px; color:#94a3b8; margin-left:10px;">(Format: A4 Landscape)</span>
+                            </div>
+                            <div>
+                                <button class="btn-print" onclick="window.print()">🖨️ Cetak / Simpan PDF</button>
+                                <button class="btn-close" onclick="window.close()">✕ Tutup</button>
+                            </div>
+                        </div>
+                        <div class="report-paper">
+                            ' . $html . '
+                        </div>
+                        <script>
+                            window.onload = function() {
+                                setTimeout(function() {
+                                    window.print();
+                                }, 600);
+                            };
+                        </script>
+                    </body>
+                    </html>';
+                    return response($printHtml, 200)->header('Content-Type', 'text/html');
+                }
             }
 
-            // Export Excel / PDF Dataset
+            // Export Excel Dataset
             $export = new class(collect($summaryRows)) implements \Maatwebsite\Excel\Concerns\FromCollection, \Maatwebsite\Excel\Concerns\WithHeadings, \Maatwebsite\Excel\Concerns\WithStyles {
                 protected $data;
                 public function __construct($data) { $this->data = $data; }
@@ -1967,16 +2077,6 @@ public function salaryOfKary($id, $periode_awal, $periode_akhir)
                     return [];
                 }
             };
-
-            // Jika Request PDF
-            if ($req->export === 'pdf' || strtolower($req->tipe ?? '') === 'pdf') {
-                try {
-                    return Excel::download($export, "laporan_statistik_penggajian_{$periode_from}_{$periode_to}.pdf", \Maatwebsite\Excel\Excel::DOMPDF);
-                } catch (\Exception $ex) {
-                    $printHtml = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Laporan Statistik Penggajian (' . $periode_from . ' s/d ' . $periode_to . ')</title><style>@page { size: landscape; margin: 8mm; } body { font-family: "Segoe UI", Arial, sans-serif; font-size: 11px; color: #1e293b; margin: 0; padding: 10px; } @media print { .no-print { display: none !important; } body { padding: 0; } }</style></head><body><div class="no-print" style="margin-bottom:15px; padding:10px 16px; background:#1e293b; color:white; border-radius:6px; display:flex; justify-content:space-between; align-items:center;"><span style="font-weight:bold; font-size:13px;">Pratinjau PDF Laporan Statistik Penggajian</span><div><button onclick="window.print()" style="background:#2563eb; color:white; border:none; padding:8px 16px; border-radius:4px; font-weight:bold; cursor:pointer;">🖨️ Cetak / Save to PDF</button><button onclick="window.close()" style="background:#64748b; color:white; border:none; padding:8px 12px; border-radius:4px; margin-left:8px; cursor:pointer;">Tutup</button></div></div>' . $html . '<script>window.onload = function() { setTimeout(function() { window.print(); }, 500); };</script></body></html>';
-                    return response($printHtml, 200)->header('Content-Type', 'text/html');
-                }
-            }
 
             return Excel::download($export, "laporan_statistik_penggajian_{$periode_from}_{$periode_to}.xlsx");
         } catch (\Exception $e) {
