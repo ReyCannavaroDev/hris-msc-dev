@@ -839,9 +839,16 @@ public function salaryOfKary($id, $periode_awal, $periode_akhir)
                     foreach ($cuti as $c) {
                       $approvalNote = generate_approval_log::where('trx_table', 't_cuti')
                         ->where('trx_id', $c->id)
-                        ->where('action_type', 'APPROVED')
+                        ->whereNotNull('action_note')
+                        ->where('action_note', '!=', '')
                         ->orderBy('id', 'desc')
                         ->value('action_note');
+
+                      if (!$approvalNote) {
+                        $approvalNote = generate_approval_det::whereHas('generate_approval', function($q) use ($c) {
+                          $q->where('form_name', 't_cuti')->where('trx_id', $c->id);
+                        })->whereNotNull('action_note')->where('action_note', '!=', '')->orderBy('id', 'desc')->value('action_note');
+                      }
 
                       $approvePct = 100;
                       if ($approvalNote && preg_match('/(\d+)\s*%/i', $approvalNote, $matches)) {
