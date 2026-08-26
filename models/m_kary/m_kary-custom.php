@@ -2743,4 +2743,164 @@ class m_kary extends \App\Models\BasicModels\m_kary
             return response()->json(['error' => $e->getMessage()], 500);
         }
     }
+
+    public function public_exportTHR()
+    {
+        try {
+            $req = request();
+            
+            // Validasi tanggal cut-off wajib ada
+            if (!$req->filled('date_cut_off')) {
+                throw new \Exception("Tanggal Cut-Off wajib diisi untuk menghitung masa kerja dan THR.");
+            }
+            
+            $date_cut_off = \Carbon\Carbon::parse($req->date_cut_off)->format('Y-m-d');
+            $cutOffObj = \Carbon\Carbon::parse($date_cut_off);
+
+            // Tarik data karyawan dengan relasi lengkap, termasuk m_agama
+            $karyQuery = m_kary::with(['m_dir', 'm_divisi', 'm_standart_gaji', 'agama', 'm_kary_det_kontrak']);
+
+            // Terapkan Filter
+            if ($req->filled('m_kary_id')) {
+                $ids = array_map('intval', explode(',', $req->m_kary_id));
+                $karyQuery->whereIn('id', $ids);
+            } else {
+                if ($req->filled('m_divisi_id')) $karyQuery->where('m_divisi_id', $req->m_divisi_id);
+                if ($req->filled('m_dir_id')) $karyQuery->where('m_dir_id', $req->m_dir_id);
+            }
+
+            if ($req->filled('is_active')) {
+                $isActive = filter_var($req->is_active, FILTER_VALIDATE_BOOLEAN);
+                $karyQuery->where('is_active', $isActive);
+            }
+
+            // Pengecekan filter ke kolom agama_id
+            if ($req->filled('agama')) {
+                $karyQuery->where('agama_id', $req->agama);
+            }
+
+            $karyawans = $karyQuery->get();
+
+            if ($karyawans->isEmpty()) {
+                throw new \Exception("Tidak ada data karyawan yang sesuai dengan filter pencarian.");
+            }
+
+            $rows = [];
+
+            foreach ($karyawans as $kary) {
+                // NILAI DEFAULT JIKA KEDUA TANGGAL (tgl_masuk & created_at) KOSONG
+                $lamaBekerjaStr = 'Data Tgl Masuk Kosong';
+                $thr = 0;
+                $tglMasukStr = '-';
+
+                // TENTUKAN TANGGAL ACUAN (Fallback ke created_at jika tgl_masuk kosong)
+                $tanggalAcuan = $kary->tgl_masuk;
+                if(empty($tanggalAcuan)){
+                    $tanggalAcuan = $kary->m_kary_det_kontrak->sortBy('tgl_awal')->first()?->tgl_awal;
+                }
+                if (empty($tanggalAcuan) && !empty($kary->created_at)) {
+                    $tanggalAcuan = $kary->created_at;
+                }
+
+                if (!empty($tanggalAcuan)) {
+                    // Carbon akan otomatis membaca dan mem-parsing format Date maupun DateTime
+                    // Tambahkan startOfDay() agar jam/menit/detik di-reset ke 00:00:00 (menghindari perhitungan bulan meleset)
+                    $tglMasukObj = \Carbon\Carbon::parse($tanggalAcuan)->startOfDay();
+                    
+                    // Format untuk ditampilkan di Excel (Hanya Tanggal)
+                    $tglMasukStr = $tglMasukObj->format('d/m/Y');
+                    
+                    $totalMonths = $tglMasukObj->diffInMonths($cutOffObj);
+                    $diffYears = $tglMasukObj->diffInYears($cutOffObj);
+                    $diffMonthsRemainder = $tglMasukObj->copy()->addYears($diffYears)->diffInMonths($cutOffObj);
+                    
+                    $lamaBekerjaStr = "{$diffYears} Tahun {$diffMonthsRemainder} Bulan";
+
+                    $gajiPokok = $kary->m_standart_gaji->gaji_pokok ?? 0;
+                    $periodeGaji = strtolower($kary->m_standart_gaji->gaji_pokok_periode ?? 'bulanan');
+                    
+                    $upahSatuBulan = ($periodeGaji === 'harian') ? ($gajiPokok * 25) : $gajiPokok;
+
+                    if ($totalMonths >= 12) {
+                        $thr = $upahSatuBulan;
+                    } else if ($totalMonths >= 3) {
+                        $thr = ($totalMonths / 12) * $upahSatuBulan;
+                    } 
+                }
+
+                $rows[] = [
+                    'ID KARYAWAN' => $kary->kode ?? '-',
+                    'NAMA KARYAWAN' => $kary->nama_lengkap ?? '',
+                    'UNIT' => $kary->m_dir->nama ?? '-',
+                    'JABATAN' => $kary->m_divisi->nama ?? '-',
+                    'AGAMA' => $kary->agama->value ?? '-', // Memanggil dari relasi
+                    'TANGGAL MASUK' => $tglMasukStr, // Sudah bersih hanya DD/MM/YYYY
+                    'LAMA BEKERJA' => $lamaBekerjaStr,
+                    'THR DITERIMA' => round($thr, 0),
+                    'IS_NO_THR' => ($thr == 0)
+                ];
+            }
+
+            // 4. Proses Pembuatan File / Response
+            $export = new class(collect($rows)) implements \Maatwebsite\Excel\Concerns\FromCollection, \Maatwebsite\Excel\Concerns\WithHeadings, \Maatwebsite\Excel\Concerns\WithStyles {
+                protected $data;
+                
+                public function __construct($data) { 
+                    $this->data = $data; 
+                }
+                
+                public function collection() { 
+                    return $this->data->map(function($item) {
+                        unset($item['IS_NO_THR']); 
+                        return $item;
+                    });
+                }
+                
+                public function headings(): array {
+                    return [
+                        'ID KARYAWAN', 'NAMA KARYAWAN', 'UNIT', 'JABATAN', 
+                        'AGAMA', 'TANGGAL MASUK', 'LAMA BEKERJA', 'THR DITERIMA'
+                    ];
+                }
+                
+                public function styles(\PhpOffice\PhpSpreadsheet\Worksheet\Worksheet $sheet) {
+                    $highestColumn = $sheet->getHighestColumn();
+                    $sheet->getStyle('A1:' . $highestColumn . '1')->getFont()->setBold(true);
+                    
+                    // Format agar kolom THR berbentuk format Number (#,##0)
+                    $sheet->getStyle('H2:H' . ($this->data->count() + 1))
+                          ->getNumberFormat()
+                          ->setFormatCode('#,##0');
+
+                    foreach ($this->data as $index => $row) {
+                        $rowIndex = $index + 2;
+                        // Ubah warna font jadi abu-abu pudar untuk karyawan yang tidak dapat THR (< 3 bulan)
+                        if ($row['IS_NO_THR']) {
+                            $sheet->getStyle('A' . $rowIndex . ':' . $highestColumn . $rowIndex)->applyFromArray([
+                                'font' => ['color' => ['argb' => 'FF999999']],
+                            ]);
+                        }
+                    }
+                    return [];
+                }
+            };
+
+            // Mode View HTML Frontend
+            if (strtolower($req->input('tipe')) === 'html') {
+                return response()->json([
+                    'status' => 'success',
+                    'data' => collect($rows)->map(function($item) {
+                        unset($item['IS_NO_THR']); 
+                        return $item;
+                    })
+                ]);
+            }
+
+            // Mode Download Excel
+            return \Maatwebsite\Excel\Facades\Excel::download($export, "Laporan_THR_{$date_cut_off}.xlsx");
+
+        } catch (\Exception $e) {
+            return response()->json(['error' => $e->getMessage()], 500);
+        }
+    }
 }
