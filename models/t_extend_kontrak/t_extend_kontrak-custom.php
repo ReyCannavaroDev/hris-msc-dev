@@ -105,36 +105,34 @@ class t_extend_kontrak extends \App\Models\BasicModels\t_extend_kontrak
             $old_contract = m_kary_det_kontrak::find(
                 $extend->m_kary_det_kontrak_id
             );
-            $old_contract->update([
-                "status" => false,
-            ]);
+            if ($old_contract) {
+                $old_contract->update([
+                    "status" => false,
+                ]);
+            }
 
-            // $new_contract = m_kary_det_kontrak::create([
-            //     "m_karyawan_id" => $extend->m_karyawan_id,
-            //     "m_divisi_id" => $extend->m_divisi_id,
-            //     "m_dir_id" => $extend->m_dir_id,
-            //     "tipe_karyawan_id" => $extend->tipe_karyawan_id,
-            //     "tgl_awal" => $extend->tgl_awal,
-            //     "tgl_akhir" => $extend->tgl_akhir,
-            //     "duration" => $extend->duration,
-            //     "contract" => $extend->contract_signed,
-            //     "status" => true,
-            // ]);
-            
-            $new_contract = \DB::table("m_kary_det_kontrak")->insert([
-                "nomor" => $extend->nomor,
-                "m_karyawan_id" => $extend->m_karyawan_id,
-                "m_divisi_id" => $extend->m_divisi_id,
-                "m_dir_id" => $extend->m_dir_id,
-                "tipe_karyawan_id" => $extend->tipe_karyawan_id,
-                "tgl_awal" => $extend->tgl_awal,
-                "tgl_akhir" => $extend->tgl_akhir,
-                "duration" => $extend->duration,
-                "contract" => $extend->contract_signed,
-                "status" => true,
-                "created_at" => Carbon::now(),
-                "updated_at" => Carbon::now(),
-            ]);
+            $exists = \DB::table("m_kary_det_kontrak")
+                ->where("m_karyawan_id", $extend->m_karyawan_id)
+                ->where("tgl_awal", $extend->tgl_awal)
+                ->where("tgl_akhir", $extend->tgl_akhir)
+                ->exists();
+
+            if (!$exists) {
+                \DB::table("m_kary_det_kontrak")->insert([
+                    "nomor" => $extend->nomor,
+                    "m_karyawan_id" => $extend->m_karyawan_id,
+                    "m_divisi_id" => $extend->m_divisi_id,
+                    "m_dir_id" => $extend->m_dir_id,
+                    "tipe_karyawan_id" => $extend->tipe_karyawan_id,
+                    "tgl_awal" => $extend->tgl_awal,
+                    "tgl_akhir" => $extend->tgl_akhir,
+                    "duration" => $extend->duration,
+                    "contract" => $extend->contract_signed,
+                    "status" => true,
+                    "created_at" => Carbon::now(),
+                    "updated_at" => Carbon::now(),
+                ]);
+            }
 
             $m_kary = m_kary::find($extend->m_karyawan_id);
             $m_kary->update([
@@ -338,9 +336,52 @@ class t_extend_kontrak extends \App\Models\BasicModels\t_extend_kontrak
                 }
 
                 if ($app->finish) {
+                    $newStatus = ($req->type === 'APPROVED') ? 'COMPLETED' : $req->type;
                     $data->update([
-                        "status" => $req->type,
+                        "status" => $newStatus,
                     ]);
+
+                    if ($req->type === 'APPROVED') {
+                        $old_contract = m_kary_det_kontrak::find($data->m_kary_det_kontrak_id);
+                        if ($old_contract) {
+                            $old_contract->update([
+                                "status" => false,
+                            ]);
+                        }
+
+                        // Cek apakah kontrak baru sudah pernah diinsert sebelumnya untuk mencegah duplikasi
+                        $exists = \DB::table("m_kary_det_kontrak")
+                            ->where("m_karyawan_id", $data->m_karyawan_id)
+                            ->where("tgl_awal", $data->tgl_awal)
+                            ->where("tgl_akhir", $data->tgl_akhir)
+                            ->exists();
+
+                        if (!$exists) {
+                            \DB::table("m_kary_det_kontrak")->insert([
+                                "nomor" => $data->nomor,
+                                "m_karyawan_id" => $data->m_karyawan_id,
+                                "m_divisi_id" => $data->m_divisi_id,
+                                "m_dir_id" => $data->m_dir_id,
+                                "tipe_karyawan_id" => $data->tipe_karyawan_id,
+                                "tgl_awal" => $data->tgl_awal,
+                                "tgl_akhir" => $data->tgl_akhir,
+                                "duration" => $data->duration,
+                                "contract" => $data->contract_signed,
+                                "status" => true,
+                                "created_at" => Carbon::now(),
+                                "updated_at" => Carbon::now(),
+                            ]);
+                        }
+
+                        $m_kary = m_kary::find($data->m_karyawan_id);
+                        if ($m_kary) {
+                            $m_kary->update([
+                                "m_divisi_id" => $data->m_divisi_id,
+                                "m_dir_id" => $data->m_dir_id,
+                                "tipe_karyawan_id" => $data->tipe_karyawan_id,
+                            ]);
+                        }
+                    }
                 } else {
                     $data->update([
                         "status" => "IN APPROVAL",
