@@ -57,7 +57,7 @@ onMounted(async () => {
             console.error("Error fetching notif jadwal", e);
         }
 
-        if (is_superadmin.value) {
+        try {
             const resKontrak = await fetch(`${store.server.url_backend}/operation/m_kary_det_kontrak/notifEndKontrak`, {
                 headers: {
                     'Content-Type': 'Application/json',
@@ -66,6 +66,8 @@ onMounted(async () => {
             });
             const dataK = await resKontrak.json();
             dataKontrak.value = dataK?.data || [];
+        } catch (e) {
+            console.error("Error fetching notif kontrak", e);
         }
     } catch (e) {
         console.error("Error fetching notif", e);

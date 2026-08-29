@@ -84,7 +84,7 @@
             </div>
           </div>
 
-          <div v-if="is_superadmin && dataKontrak.length > 0" class="rounded-none border border-l-0 border-r-0 border-t-0 border-neutral-200 !bg-yellow-300 dark:border-neutral-600 dark:bg-neutral-800 mb-4">
+          <div v-if="dataKontrak.length > 0" class="rounded-none border border-l-0 border-r-0 border-t-0 border-neutral-200 !bg-yellow-300 dark:border-neutral-600 dark:bg-neutral-800 mb-4">
             <h2 class="mb-0" id="flush-headingKontrak">
               <button
                 @click="isKontrakOpen = !isKontrakOpen"

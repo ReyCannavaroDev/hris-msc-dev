@@ -328,7 +328,13 @@ class t_extend_kontrak extends \App\Models\BasicModels\t_extend_kontrak
                     ]);
                 }
 
-                if($data->m_dir_id != $approver?->m_dir_id){
+                $is_superadmin = \DB::table('m_role')
+                    ->join('m_role_access', 'm_role.id', '=', 'm_role_access.m_role_id')
+                    ->where('m_role_access.user_id', $user_id)
+                    ->where('m_role.is_superadmin', true)
+                    ->exists();
+
+                if(!$is_superadmin && $approver && $data->m_dir_id != $approver->m_dir_id && $data->creator_id != $user_id){
                      return $this->helper->customResponse(
                         "Anda tidak memiliki hak akses untuk approval ini",
                         400

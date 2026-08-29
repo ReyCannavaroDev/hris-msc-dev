@@ -313,20 +313,31 @@ class Helper
             $kode = "0000001";
         }
 
-        $check = generate_approval::whereRaw("generate_approval.status = 'PROGRESS' 
-                and generate_approval.id = $approval_det->generate_approval_id
-                and case when generate_approval.last_approve_id is not null then
-                    generate_approval.last_approve_id = $userAuth->id
-                else
-                    generate_approval.id in(select d.generate_approval_id from generate_approval_det d where 
-                        d.m_role_id in(select r.m_role_id from m_role_access r where r.user_id = $userAuth->id)
+        $is_superadmin = DB::table('m_role')
+            ->join('m_role_access', 'm_role.id', '=', 'm_role_access.m_role_id')
+            ->where('m_role_access.user_id', $userAuth->id)
+            ->where('m_role.is_superadmin', true)
+            ->exists();
+
+        if (!$is_superadmin) {
+            $check = generate_approval::whereRaw("generate_approval.status = 'PROGRESS' 
+                    and generate_approval.id = $approval_det->generate_approval_id
+                    and (
+                        generate_approval.creator_id = $userAuth->id
+                        or case when generate_approval.last_approve_id is not null then
+                            generate_approval.last_approve_id = $userAuth->id
+                        else
+                            generate_approval.id in(select d.generate_approval_id from generate_approval_det d where 
+                                d.m_role_id in(select r.m_role_id from m_role_access r where r.user_id = $userAuth->id)
+                            )
+                        end
                     )
-                end
-            ")->exists();
-            
-        if(!$check){
-            $next = false;
-            $kode = "0000002, $text";
+                ")->exists();
+                
+            if(!$check){
+                $next = false;
+                $kode = "0000002, $text";
+            }
         }
 
         $check_log = generate_approval_log::where('generate_approval_det_id', $approval_det->id)->exists();
@@ -612,17 +623,25 @@ class Helper
         $userAuth = auth()->user();
         $model = new generate_approval;
 
+        $is_superadmin = DB::table('m_role')
+            ->join('m_role_access', 'm_role.id', '=', 'm_role_access.m_role_id')
+            ->where('m_role_access.user_id', $userAuth->id)
+            ->where('m_role.is_superadmin', true)
+            ->exists();
+
         $data = generate_approval::selectRaw("generate_approval.*,(select u.name from default_users u where u.id = generate_approval.creator_id) creator")
             ->leftJoin('default_users', 'default_users.id', 'generate_approval.creator_id')
             ->whereRaw("generate_approval.status = 'PROGRESS' 
-                and case when generate_approval.last_approve_id is not null then
-                    generate_approval.last_approve_id = $userAuth->id
-                else
-                    generate_approval.id in(select d.generate_approval_id from generate_approval_det d where 
-                        d.m_role_id in(select r.m_role_id from m_role_access r where r.user_id = $userAuth->id)
-                           and d.is_done = false and d.id = generate_approval.last_approve_det_id
-                    )
-                end
+                and (" . ($is_superadmin ? "1=1" : "
+                    case when generate_approval.last_approve_id is not null then
+                        (generate_approval.last_approve_id = $userAuth->id or generate_approval.creator_id = $userAuth->id)
+                    else
+                        (generate_approval.id in(select d.generate_approval_id from generate_approval_det d where 
+                            d.m_role_id in(select r.m_role_id from m_role_access r where r.user_id = $userAuth->id)
+                               and d.is_done = false and d.id = generate_approval.last_approve_det_id
+                        ) or generate_approval.creator_id = $userAuth->id)
+                    end
+                ") . ")
             ")
             ->orderBy('generate_approval.id', 'desc')
             ->search(['trx_name', 'nomor', 'trx_date', 'trx_nomor', 'default_users.name'])
