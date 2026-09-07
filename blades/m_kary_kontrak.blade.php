@@ -185,7 +185,7 @@
     <div>
       <div class="grid grid-cols-12 items-center">
         <label class="col-span-12">Kontrak Full<label class="text-red-500 space-x-0 pl-0">*</label></label>
-        <FieldUpload :bind="{ disabled: !actionText}" class="col-span-12 !mt-0 w-full" :value="values.contract_signed"
+        <FieldUpload :bind="{ disabled: !actionText && !route.query.is_approval}" class="col-span-12 !mt-0 w-full" :value="values.contract_signed"
           @input="(v)=>values.contract_signed=v" :maxSize="10"
           :reducerDisplay="val=>!val?null:val.split(':::')[val.split(':::').length-1]" :api="{
             url: `${store.server.url_backend}/operation/t_extend_kontrak/upload`,
