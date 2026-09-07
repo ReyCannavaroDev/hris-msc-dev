@@ -525,11 +525,15 @@ class presensi_absensi extends \App\Models\BasicModels\presensi_absensi
                  ->where("default_user_id", auth()->user()->id)
                  ->first();
                  
-            if ($presensiData && !$presensiData->istirahat_tipe) {
-                return $this->helper->customResponse("Harap laporkan absensi istirahat Anda terlebih dahulu!", 422);
-            }
-            if ($presensiData && $presensiData->istirahat_tipe === 'KELUAR' && !$presensiData->istirahat_end) {
-                return $this->helper->customResponse("Istirahat Anda belum diselesaikan! Harap klik Selesai Istirahat terlebih dahulu.", 422);
+            // Jika karyawan sedang istirahat KELUAR dan belum klik selesai, selesaikan otomatis saat checkout
+            if ($presensiData && $presensiData->istirahat_tipe === 'KELUAR' && !$presensiData->istirahat_end && $presensiData->istirahat_start) {
+                $start = Carbon::parse($presensiData->istirahat_start);
+                $end = Carbon::now();
+                $durasi = $start->diffInMinutes($end);
+                $presensiData->update([
+                    'istirahat_end' => $end->format('H:i:s'),
+                    'istirahat_durasi' => $durasi,
+                ]);
             }
 
             $check_exists_absen = $this->where("tanggal", date("Y-m-d"))
@@ -542,7 +546,7 @@ class presensi_absensi extends \App\Models\BasicModels\presensi_absensi
             $check_not_exists_checkin = $this->where("tanggal", date("Y-m-d"))
                 ->where("default_user_id", auth()->user()->id)
                 ->where("status", "WORKING")->exists();
-             if ($check_exists_absen) 
+            if (!$check_not_exists_checkin) 
                 return $this->helper->customResponse("Anda belum checkin hari ini", 422);
 
             if ($req->hasFile('foto')) {
