@@ -91,8 +91,21 @@ class generate_approval extends \App\Models\BasicModels\generate_approval
             $data->setCollection($filteredData);
         }
 
+        // Self-Healing: Otomatis buang dan tolak tiket approval yatim yang data transaksinya sudah tidak ada di database
+        $validData = $data->getCollection()->filter(function($item) {
+            if ($item->trx_table && $item->trx_id) {
+                $trxExists = \DB::table($item->trx_table)->where('id', $item->trx_id)->exists();
+                if (!$trxExists) {
+                    // Auto-cleanup: Otomatis set REJECTED agar bersih permanen dari antrean database
+                    \DB::table('generate_approval')->where('id', $item->id)->update(['status' => 'REJECTED']);
+                    return false;
+                }
+            }
+            return true;
+        })->values();
+
         $data->setCollection(
-            $data->getCollection()->map(function($item) {
+            $validData->map(function($item) {
                 $item->unit = m_dir::where('id', $item->m_dir_id)->value('nama') ?? '-';
 
                 // Ambil nama karyawan berdasarkan jenis transaksi
