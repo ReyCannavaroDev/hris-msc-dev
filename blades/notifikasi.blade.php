@@ -163,6 +163,9 @@
                                 Nomor Transaksi
                             </th>
                             <th scope="col" class="px-6 py-3">
+                                Nama Karyawan
+                            </th>
+                            <th scope="col" class="px-6 py-3">
                                 Pemohon
                             </th>
                             <th scope="col" class="px-6 py-3">
@@ -192,6 +195,9 @@
                         <th scope="row" class="px-6 py-2 font-medium text-gray-900 whitespace-nowrap dark:text-white">
                             {{ d.trx_nomor }}
                         </th>
+                        <td class="px-6 py-2 font-medium text-gray-900 dark:text-white">
+                            {{ d.nama_karyawan ?? '-' }}
+                        </td>
                         <td class="px-6 py-2">
                             {{ d.creator }}
                         </td>

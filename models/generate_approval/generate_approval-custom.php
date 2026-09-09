@@ -94,6 +94,22 @@ class generate_approval extends \App\Models\BasicModels\generate_approval
         $data->setCollection(
             $data->getCollection()->map(function($item) {
                 $item->unit = m_dir::where('id', $item->m_dir_id)->value('nama') ?? '-';
+
+                // Ambil nama karyawan berdasarkan jenis transaksi
+                $nama_karyawan = null;
+                if ($item->trx_table === 't_extend_kontrak') {
+                    $nama_karyawan = \DB::table('t_extend_kontrak')
+                        ->leftJoin('m_kary', 'm_kary.id', '=', 't_extend_kontrak.m_karyawan_id')
+                        ->where('t_extend_kontrak.id', $item->trx_id)
+                        ->value('m_kary.nama_lengkap');
+                } elseif (in_array($item->trx_table, ['t_cuti', 't_lembur', 't_spd'])) {
+                    $nama_karyawan = \DB::table($item->trx_table)
+                        ->leftJoin('m_kary', 'm_kary.id', '=', $item->trx_table . '.m_kary_id')
+                        ->where($item->trx_table . '.id', $item->trx_id)
+                        ->value('m_kary.nama_lengkap');
+                }
+
+                $item->nama_karyawan = $nama_karyawan ?? $item->creator ?? '-';
                 return $item;
             })
         );
