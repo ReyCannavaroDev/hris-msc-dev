@@ -203,7 +203,7 @@ class m_dir extends \App\Models\BasicModels\m_dir
         $date_start = Carbon::now()->subMonths(1)->format('Y-m-d');
         $date_end = Carbon::now()->format('Y-m-d');
 
-        // 1. TOP LATE (Sudah dikonversi ke menit di SQL)
+        // 1. TOP LATE (Sudah dikonversi ke menit di SQL - Hanya karyawan aktif)
         $topLate = DB::table('presensi_absensi as p')
             ->join('default_users as u', 'p.default_user_id', '=', 'u.id')
             ->join('m_kary as k', 'u.m_kary_id', '=', 'k.id')
@@ -222,13 +222,15 @@ class m_dir extends \App\Models\BasicModels\m_dir
                     )"));
             })
             ->select('k.nama_lengkap', DB::raw("ROUND(SUM(CASE WHEN p.checkin_time > d.waktu_mulai THEN EXTRACT(EPOCH FROM (p.checkin_time - d.waktu_mulai))/60 ELSE 0 END)) as total_late"))
+            ->where('k.is_active', true)
+            ->where('u.is_active', true)
             ->whereBetween('p.tanggal', [$date_start, $date_end])
             ->groupBy('k.nama_lengkap')
             ->orderByDesc('total_late')
             ->take(5)
             ->get();
 
-        // 2. TOP ABSENT (Mencari hari kerja yang tidak ada di tabel presensi)
+        // 2. TOP ABSENT (Mencari hari kerja yang tidak ada di tabel presensi - Hanya karyawan aktif)
         // Menggunakan Generate Series untuk membuat kalender bayangan
         $topAbsent = DB::select("
             WITH date_range AS (
@@ -255,7 +257,9 @@ class m_dir extends \App\Models\BasicModels\m_dir
                             WHEN 6 THEN 'Sabtu'
                         END
                     )
-                WHERE d.tipe_hari = 'KERJA'
+                WHERE k.is_active = true
+                AND u.is_active = true
+                AND d.tipe_hari = 'KERJA'
                 -- Tambahkan filter agar tidak menghitung hari masa depan jika range-nya sampai akhir bulan
                 AND dr.tgl <= CURRENT_DATE
             )
@@ -269,7 +273,7 @@ class m_dir extends \App\Models\BasicModels\m_dir
             LIMIT 5
         ", [$date_start, $date_end]);
 
-        // 3. PERFECT ATTENDANCE (Hadir tepat waktu & pulang sesuai jadwal)
+        // 3. PERFECT ATTENDANCE (Hadir tepat waktu & pulang sesuai jadwal - Hanya karyawan aktif)
         $topPerfect = DB::table('presensi_absensi as p')
             ->join('default_users as u', 'p.default_user_id', '=', 'u.id')
             ->join('m_kary as k', 'u.m_kary_id', '=', 'k.id')
@@ -289,6 +293,8 @@ class m_dir extends \App\Models\BasicModels\m_dir
                     )"));
             })
             ->select('k.nama_lengkap', DB::raw("COUNT(*) as total_perfect"))
+            ->where('k.is_active', true)
+            ->where('u.is_active', true)
             ->whereBetween('p.tanggal', [$date_start, $date_end])
             ->whereRaw("p.checkin_time <= d.waktu_mulai")
             ->whereRaw("p.checkout_time >= d.waktu_akhir")
@@ -311,6 +317,12 @@ class m_dir extends \App\Models\BasicModels\m_dir
         // dd($date_start, $date_end);
 
         $results = presensi_absensi::whereBetween('tanggal', [$date_start, $date_end])
+        ->whereHas('default_users.m_kary', function($q) {
+            $q->where('is_active', true);
+        })
+        ->whereHas('default_users', function($q) {
+            $q->where('is_active', true);
+        })
         ->with(['default_users.m_kary.t_jadwal_kerja.t_jadwal_kerja_det_hari']) 
         ->get()
         // dd($results);
@@ -356,7 +368,12 @@ class m_dir extends \App\Models\BasicModels\m_dir
         $date_end = Carbon::now();
         $date_start = Carbon::now()->subMonths(1);
 
-        $karyawan = m_kary::with(['t_jadwal_kerja.t_jadwal_kerja_det_hari', 'default_users'])->get();
+        $karyawan = m_kary::where('is_active', true)
+            ->whereHas('default_users', function($q) {
+                $q->where('is_active', true);
+            })
+            ->with(['t_jadwal_kerja.t_jadwal_kerja_det_hari', 'default_users'])
+            ->get();
 
         $allPresensi = presensi_absensi::whereBetween('tanggal', [
                 $date_start->format('Y-m-d'), 
@@ -416,6 +433,12 @@ class m_dir extends \App\Models\BasicModels\m_dir
         $date_start = Carbon::now()->subMonths(1)->format('Y-m-d');
 
         $results = presensi_absensi::whereBetween('tanggal', [$date_start, $date_end])
+            ->whereHas('default_users.m_kary', function($q) {
+                $q->where('is_active', true);
+            })
+            ->whereHas('default_users', function($q) {
+                $q->where('is_active', true);
+            })
             ->with(['default_users.m_kary.t_jadwal_kerja.t_jadwal_kerja_det_hari']) 
             ->get()
             // --- TAMBAHKAN FILTER INI ---
