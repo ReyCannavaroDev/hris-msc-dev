@@ -68,6 +68,7 @@ onBeforeMount(async () => {
       if (!res.ok) throw new Error("Failed when trying to read data")
       const resultJson = await res.json()
       initialValues = resultJson.data
+      initialValues.geo_checkin = `POINT(${initialValues.long} ${initialValues.lat})`
       initialValues.is_active=initialValues.is_active?1:0
     } catch (err) {
       isBadForm.value = true

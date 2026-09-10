@@ -125,28 +125,30 @@
             :check="false" />
       </div>
       <div>
-        <FieldX :bind="{ readonly: !actionText }" type="number" label=""  class="w-full !mt-3"
+        <FieldX :bind="{ readonly: !actionText }" type="number" label="" class="w-full !mt-3"
             :value="values.lat" :errorText="formErrors.lat ? 'failed' : ''"
-            @input="v=>values.lat=v" :hints="formErrors.lat" 
-            @change="(e)=>{
+            @input="(v)=>{
+              values.lat = v
               if(values.long && values.lat){  
                 values.geo_checkin = `POINT(${values.long} ${values.lat})`
               }
             }"
+            :hints="formErrors.lat" 
             :check="false"
             label="Latitude"
             placeholder="Tuliskan Latitude"
           />
       </div>
       <div>
-        <FieldX :bind="{ readonly: !actionText }"type="number" label=""  class="w-full !mt-3"
+        <FieldX :bind="{ readonly: !actionText }" type="number" label="" class="w-full !mt-3"
             :value="values.long" :errorText="formErrors.long ? 'failed' : ''"
-            @input="v=>values.long=v" :hints="formErrors.long" 
-            @change="(e)=>{
+            @input="(v)=>{
+              values.long = v
               if(values.long && values.lat){  
                 values.geo_checkin = `POINT(${values.long} ${values.lat})`
               }
             }"
+            :hints="formErrors.long" 
             :check="false"
             label="Longtitude"
             placeholder="Tuliskan Longtitude"
@@ -155,11 +157,23 @@
       <div>
         <FieldGeo class="w-full !mt-3"
           :bind="{ readonly: !actionText, search:true}"  
-          @input="(v)=>{values.geo_checkin=v}"
-          :center="[-7.3244677, 112.7550714]"
+          @input="(v)=>{
+            values.geo_checkin = v
+            if(v){
+              const match = v.match(/\(([^)]+)\)/)
+              if(match && match[1]){
+                const parts = match[1].trim().split(/\s+/)
+                if(parts.length >= 2){
+                  values.long = parts[0]
+                  values.lat = parts[1]
+                }
+              }
+            }
+          }"
+          :center="values.lat && values.long ? [parseFloat(values.lat), parseFloat(values.long)] : [-6.2088, 106.8456]"
           :errorText="formErrors.geo_checkin?'failed':''" 
           :hints="formErrors.geo_checkin"
-          geostring="POINT(112.7550714 -7.3244677)"
+          geostring="POINT(106.8456 -6.2088)"
           :value="values.geo_checkin" Label="Titik lokasi" placeholder="Pilih Titik Lokasi" fa-icon="map-marker-alt" :check="false"
         />
       </div>

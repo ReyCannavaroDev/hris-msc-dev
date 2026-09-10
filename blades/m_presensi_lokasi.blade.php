@@ -138,15 +138,16 @@
         </div> -->
 
         <div class="grid grid-cols-12 items-center gap-y-2">
-          <label class="col-span-12">Latitude</span></label>
-          <FieldX :bind="{ readonly: !actionText }" type="number" label=""  class="w-full !mt-0 col-span-12"
+          <label class="col-span-12">Latitude</label>
+          <FieldX :bind="{ readonly: !actionText }" type="number" label="" class="w-full !mt-0 col-span-12"
             :value="values.lat" :errorText="formErrors.lat ? 'failed' : ''"
-            @input="v=>values.lat=v" :hints="formErrors.lat" 
-            @change="(e)=>{
+            @input="(v)=>{
+              values.lat = v
               if(values.long && values.lat){  
                 values.geo_checkin = `POINT(${values.long} ${values.lat})`
               }
             }"
+            :hints="formErrors.lat" 
             :check="false"
             label=""
             placeholder="Latitude"
@@ -154,15 +155,16 @@
         </div>
 
         <div class="grid grid-cols-12 items-center gap-y-2">
-          <label class="col-span-12">Longtitude</span></label>
-          <FieldX :bind="{ readonly: !actionText }"type="number" label=""  class="w-full !mt-0 col-span-12"
+          <label class="col-span-12">Longtitude</label>
+          <FieldX :bind="{ readonly: !actionText }" type="number" label="" class="w-full !mt-0 col-span-12"
             :value="values.long" :errorText="formErrors.long ? 'failed' : ''"
-            @input="v=>values.long=v" :hints="formErrors.long" 
-            @change="(e)=>{
+            @input="(v)=>{
+              values.long = v
               if(values.long && values.lat){  
                 values.geo_checkin = `POINT(${values.long} ${values.lat})`
               }
             }"
+            :hints="formErrors.long" 
             :check="false"
             label=""
             placeholder="Longtitude"
@@ -170,14 +172,26 @@
         </div>
 
         <div class="grid grid-cols-12 items-center gap-y-2">
-          <label class="col-span-12">Pin Titik Lokasi</span></label>
+          <label class="col-span-12">Pin Titik Lokasi</label>
           <FieldGeo class="w-full !mt-0 col-span-12"
           :bind="{ readonly: !actionText, search:true}"  
-          @input="(v)=>{values.geo_checkin=v}"
-          :center="[-7.3244677, 112.7550714]"
+          @input="(v)=>{
+            values.geo_checkin = v
+            if(v){
+              const match = v.match(/\(([^)]+)\)/)
+              if(match && match[1]){
+                const parts = match[1].trim().split(/\s+/)
+                if(parts.length >= 2){
+                  values.long = parts[0]
+                  values.lat = parts[1]
+                }
+              }
+            }
+          }"
+          :center="values.lat && values.long ? [parseFloat(values.lat), parseFloat(values.long)] : [-6.2088, 106.8456]"
           :errorText="formErrors.geo_checkin?'failed':''" 
           :hints="formErrors.geo_checkin"
-          geostring="POINT(112.7550714 -7.3244677)"
+          geostring="POINT(106.8456 -6.2088)"
           :value="values.geo_checkin" placeholder="Pilih Titik Lokasi" fa-icon="map-marker-alt" :check="false"
         />
         </div>
