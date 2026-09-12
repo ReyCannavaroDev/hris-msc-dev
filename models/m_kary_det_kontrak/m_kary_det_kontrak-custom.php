@@ -99,6 +99,8 @@ class m_kary_det_kontrak extends \App\Models\BasicModels\m_kary_det_kontrak
                 'm_kary_det_kontrak.*'
             )
             ->join('m_kary', 'm_kary_det_kontrak.m_karyawan_id', 'm_kary.id')
+            ->where('m_kary.is_active', true)
+            ->whereNull('m_kary.tgl_berhenti')
             ->where('m_kary_det_kontrak.status', true)
             ->whereDoesntHave('t_extend_kontrak', function($q) {
                 $q->whereIn('status', ['COMPLETED', 'APPROVED']);
@@ -146,6 +148,8 @@ class m_kary_det_kontrak extends \App\Models\BasicModels\m_kary_det_kontrak
             }
 
             $query = m_kary_det_kontrak::join('m_kary', 'm_kary_det_kontrak.m_karyawan_id', 'm_kary.id')
+                ->where('m_kary.is_active', true)
+                ->whereNull('m_kary.tgl_berhenti')
                 ->where('m_kary_det_kontrak.status', true)
                 ->whereDoesntHave('t_extend_kontrak', function($q) {
                     $q->whereIn('status', ['COMPLETED', 'APPROVED']);
