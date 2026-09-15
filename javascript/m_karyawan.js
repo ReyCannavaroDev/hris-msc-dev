@@ -1134,7 +1134,7 @@ async function onSave() {
         no_rek: values.no_rek,
         atas_nama_rek: values.atas_nama_rek,
         desc: values.desc,
-        is_active: values.periode_gaji_idtrue,
+        is_active: true,
       }]
     }
     // if(detailKeluarga.value.length === 0){
