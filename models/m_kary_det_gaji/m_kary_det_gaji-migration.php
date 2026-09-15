@@ -13,10 +13,16 @@ class mkarydetgaji extends Migration
         Schema::create($this->tableName, function (Blueprint $table) {
             $table->id()->from(1);
 
-            $table->string('samplecolumn',100)->nullable();
-
-            // $table->integer('creator_id')->nullable();
-            // $table->integer('last_editor_id')->nullable();
+            $table->bigInteger('m_karyawan_id')->comment('{"fk":"m_kary.id"}')->nullable();
+            $table->bigInteger('m_standart_gaji_id')->comment('{"src":"m_standart_gaji.id"}')->nullable();
+            $table->bigInteger('tipe_karyawan_id')->comment('{"src":"m_general.id"}')->nullable();
+            $table->date('tgl_awal')->nullable();
+            $table->date('tgl_akhir')->nullable();
+            $table->boolean('status')->nullable()->default(true);
+            $table->text('keterangan')->nullable();
+            $table->string('nomor', 100)->nullable();
+            //$table->bigInteger('creator_id')->comment('{"src":"default_users.id"}')->nullable();
+            //$table->bigInteger('last_editor_id')->comment('{"src":"default_users.id"}')->nullable();
             $table->timestamps();
         });
 
