@@ -91,6 +91,13 @@
           </button>
       <button
             class="block w-full flex items-center justify-center border-b-2 border-gray-100 p-3 hover:border-blue-600 hover:text-blue-600 duration-300"
+            :class="{'border-blue-600 text-blue-600 font-bold': activeTabIndex === 9}"
+            @click="activeTabIndex = 9"
+          >
+            Riwayat Gaji
+          </button>
+      <button
+            class="block w-full flex items-center justify-center border-b-2 border-gray-100 p-3 hover:border-blue-600 hover:text-blue-600 duration-300"
             :class="{'border-blue-600 text-blue-600 font-bold': activeTabIndex === 1}"
             @click="activeTabIndex = 1"
           >
@@ -1306,6 +1313,174 @@
                 No data to show
               </td>
             </tr>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Form Riwayat Gaji -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-6 mt-9" v-if="activeTabIndex === 9">
+      <div>
+        <div class="grid grid-cols-12 items-center">
+          <label class="col-span-12">Standar Gaji<label class="text-red-500 space-x-0 pl-0">*</label></label>
+          <FieldSelect :bind="{ disabled: !actionText && !isProfile, clearable:false }" class="col-span-12 !mt-0 w-full"
+            :value="valuesGaji.m_standart_gaji_id" @input="v=>valuesGaji.m_standart_gaji_id=v"
+            :errorText="formErrorsGaji.m_standart_gaji_id?'failed':''"
+            @update:valueFull="(dt)=>{ valuesGaji.standart_gaji_desc = dt.desc || dt.kode }" label=""
+            placeholder="Pilih Standar Gaji" :hints="formErrorsGaji.m_standart_gaji_id" :api="{
+          url: `${store.server.url_backend}/operation/m_standart_gaji`,
+          headers: { 'Content-Type': 'Application/json', Authorization: `${store.user.token_type} ${store.user.token}`},
+          params: { simplest:true, where: `this.is_active = 'true'` }
+        }" valueField="id" displayField="desc" :check="false" />
+        </div>
+      </div>
+
+      <div>
+        <div class="grid grid-cols-12 items-center">
+          <label class="col-span-12">Tipe Karyawan / Status<label class="text-red-500 space-x-0 pl-0">*</label></label>
+          <FieldSelect :bind="{ disabled: !actionText && !isProfile, clearable:false }" class="col-span-12 !mt-0 w-full"
+            :value="valuesGaji.tipe_karyawan_id" label="" placeholder="Pilih Tipe Karyawan"
+            @input="v=>valuesGaji.tipe_karyawan_id=v" :errorText="formErrorsGaji.tipe_karyawan_id?'failed':''"
+            @update:valueFull="(objVal)=>{ valuesGaji.tipe_karyawan_value = objVal.value }"
+            :hints="formErrorsGaji.tipe_karyawan_id" valueField="id" displayField="value" :api="{
+          url: `${store.server.url_backend}/operation/m_general`,
+          headers: { 'Content-Type': 'Application/json', Authorization: `${store.user.token_type} ${store.user.token}`},
+          params: {
+            simplest: true,
+            transform: false,
+            where: `this.group='TIPE KARYAWAN' AND this.is_active='true'`,
+            join: true,
+            selectfield: 'this.id, this.code, this.value, this.is_active'
+          }
+        }" :check="false" />
+        </div>
+      </div>
+
+      <div>
+        <div class="grid grid-cols-12 items-center">
+          <label class="col-span-12">Tanggal Mulai Berlaku<label class="text-red-500 space-x-0 pl-0">*</label></label>
+          <FieldX type="date" :bind="{ readonly: !actionText && !isProfile }" class="col-span-12 !mt-0 w-full"
+            :value="valuesGaji.tgl_awal" label="" placeholder="Pilih Tanggal Mulai" @input="v=>valuesGaji.tgl_awal=v"
+            :check="false" :errorText="formErrorsGaji.tgl_awal?'failed':''" :hints="formErrorsGaji.tgl_awal" />
+        </div>
+      </div>
+
+      <div>
+        <div class="grid grid-cols-12 items-center">
+          <label class="col-span-12">Tanggal Selesai Berlaku</label>
+          <FieldX type="date" :bind="{ readonly: !actionText && !isProfile }" class="col-span-12 !mt-0 w-full"
+            :value="valuesGaji.tgl_akhir" label="" placeholder="Pilih Tanggal Selesai (Kosongkan jika aktif)"
+            @input="v=>valuesGaji.tgl_akhir=v" :check="false" :errorText="formErrorsGaji.tgl_akhir?'failed':''"
+            :hints="formErrorsGaji.tgl_akhir" />
+        </div>
+      </div>
+
+      <div>
+        <div class="grid grid-cols-12 items-center">
+          <label class="col-span-12">Status<label class="text-red-500 space-x-0 pl-0">*</label></label>
+          <FieldSelect :bind="{ disabled: !actionText && !isProfile, clearable:false }" class="col-span-12 !mt-0 w-full"
+            label="" placeholder="Pilih Status" :value="valuesGaji.status" @input="v=>valuesGaji.status=v"
+            :options="[{ label: 'Aktif', value: true },{ label: 'Non Aktif', value: false }]"
+            :errorText="formErrorsGaji.status?'failed':''" :hints="formErrorsGaji.status" valueField="value"
+            displayField="label" :check="false" />
+        </div>
+      </div>
+
+      <div>
+        <div class="grid grid-cols-12 items-center">
+          <label class="col-span-12">Keterangan / Catatan</label>
+          <FieldX :bind="{ readonly: !actionText && !isProfile }" class="col-span-12 !mt-0 w-full"
+            :value="valuesGaji.keterangan" label="" placeholder="Contoh: Gaji Training, Lulus Training Kontrak 1"
+            @input="v=>valuesGaji.keterangan=v" :check="false" />
+        </div>
+      </div>
+
+      <div class="md:col-span-2">
+        <button
+          :disabled="!actionText && !isProfile ? true : false"
+          @click="addGaji"
+          type="button"
+          :class="isGajiFormInvalid ? 'mr-[15px] mb-3 bg-gray-400 opacity-50 cursor-not-allowed text-white py-[9px] px-[19.5px] flex items-center justify-center space-x-2 rounded' : 'mr-[15px] mb-3 bg-[#005FBF] hover:bg-[#0055ab] text-white py-[9px] px-[19.5px] flex items-center justify-center space-x-2 rounded'"
+        >
+          <icon fa="plus" /> <span>Add to List</span>
+        </button>
+
+        <table class="w-full overflow-x-auto table-auto border border-[#CACACA] pt-4">
+          <thead>
+            <tr class="border">
+              <td class="text-[#8f8f8f] font-semibold text-[12px] text-capitalize p-2 text-center w-[5%] border bg-[#f8f8f8] border-[#CACACA]">No</td>
+              <td class="text-[#8f8f8f] font-semibold text-[12px] text-capitalize p-2 text-center border bg-[#f8f8f8] border-[#CACACA]">Standar Gaji</td>
+              <td class="text-[#8f8f8f] font-semibold text-[12px] text-capitalize p-2 text-center border bg-[#f8f8f8] border-[#CACACA]">Tipe / Status</td>
+              <td class="text-[#8f8f8f] font-semibold text-[12px] text-capitalize p-2 text-center border bg-[#f8f8f8] border-[#CACACA]">Tanggal Mulai</td>
+              <td class="text-[#8f8f8f] font-semibold text-[12px] text-capitalize p-2 text-center border bg-[#f8f8f8] border-[#CACACA]">Tanggal Selesai</td>
+              <td class="text-[#8f8f8f] font-semibold text-[12px] text-capitalize p-2 text-center border bg-[#f8f8f8] border-[#CACACA]">Keterangan</td>
+              <td class="text-[#8f8f8f] font-semibold text-[12px] text-capitalize p-2 text-center border bg-[#f8f8f8] border-[#CACACA]">Status</td>
+              <td class="text-[#8f8f8f] font-semibold text-[12px] text-capitalize p-2 text-center w-[5%] border bg-[#f8f8f8] border-[#CACACA]"></td>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="(item, i) in detailGaji" :key="item.id || i" class="border-t">
+              <td class="text-[12px] text-center border border-[#CACACA]">{{ i + 1 }}.</td>
+              <td class="text-[12px] text-left border border-[#CACACA] p-2">
+                <FieldSelect :bind="{ disabled: !actionText && !isProfile, clearable:false }"
+                  class="col-span-12 !mt-0 w-full" :value="item.m_standart_gaji_id" @input="v=>item.m_standart_gaji_id=v"
+                  @update:valueFull="(dt)=>{ item.standart_gaji_desc = dt.desc || dt.kode }" label=""
+                  placeholder="Pilih Standar Gaji" :api="{
+                    url: `${store.server.url_backend}/operation/m_standart_gaji`,
+                    headers: { 'Content-Type': 'Application/json', Authorization: `${store.user.token_type} ${store.user.token}`},
+                    params: { simplest:true, where: `this.is_active = 'true'` }
+                  }" valueField="id" displayField="desc" :check="false" />
+              </td>
+              <td class="text-[12px] text-left border border-[#CACACA] p-2">
+                <FieldSelect :bind="{ disabled: !actionText && !isProfile, clearable:false }"
+                  class="col-span-12 !mt-0 w-full" :value="item.tipe_karyawan_id" label="" placeholder="Tipe Karyawan"
+                  @input="v=>item.tipe_karyawan_id=v"
+                  @update:valueFull="(objVal)=>{ item.tipe_karyawan_value = objVal.value }"
+                  valueField="id" displayField="value" :api="{
+                    url: `${store.server.url_backend}/operation/m_general`,
+                    headers: { 'Content-Type': 'Application/json', Authorization: `${store.user.token_type} ${store.user.token}`},
+                    params: {
+                      simplest: true,
+                      transform: false,
+                      where: `this.group='TIPE KARYAWAN' AND this.is_active='true'`,
+                      join: true,
+                      selectfield: 'this.id, this.code, this.value, this.is_active'
+                    }
+                  }" :check="false" />
+              </td>
+              <td class="text-[12px] text-center border border-[#CACACA] p-2">
+                <FieldX type="date" :bind="{ readonly: !actionText && !isProfile }" class="col-span-12 !mt-0 w-full"
+                  :value="item.tgl_awal" label="" placeholder="Tanggal Mulai" @input="v=>item.tgl_awal=v" :check="false" />
+              </td>
+              <td class="text-[12px] text-center border border-[#CACACA] p-2">
+                <FieldX type="date" :bind="{ readonly: !actionText && !isProfile }" class="col-span-12 !mt-0 w-full"
+                  :value="item.tgl_akhir" label="" placeholder="Tanggal Selesai" @input="v=>item.tgl_akhir=v" :check="false" />
+              </td>
+              <td class="text-[12px] text-left border border-[#CACACA] p-2">
+                <FieldX :bind="{ readonly: !actionText && !isProfile }" class="col-span-12 !mt-0 w-full"
+                  :value="item.keterangan" label="" placeholder="Catatan" @input="v=>item.keterangan=v" :check="false" />
+              </td>
+              <td class="text-[12px] text-center border border-[#CACACA] p-2">
+                <FieldSelect :bind="{ disabled: !actionText && !isProfile, clearable:false }" label=""
+                  placeholder="Pilih Status" :value="item.status" @input="v=>item.status=v"
+                  :options="[{ label: 'Aktif', value: true },{ label: 'Non Aktif', value: false }]"
+                  valueField="value" displayField="label" :check="false" />
+              </td>
+              <td class="border border-[#CACACA]">
+                <div class="flex justify-center">
+                  <button type="button" @click="removeDetailGaji(i)" :disabled="!actionText">
+                    <svg width="14" height="14" viewBox="0 0 14 18" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <path d="M14 1H10.5L9.5 0H4.5L3.5 1H0V3H14M1 16C1 16.5304 1.21071 17.0391 1.58579 17.4142C1.96086 17.7893 2.46957 18 3 18H11C11.5304 18 12.0391 17.7893 12.4142 17.4142C12.7893 17.0391 13 16.5304 13 16V4H1V16Z" fill="#F24E1E"/>
+                    </svg>
+                  </button>
+                </div>
+              </td>
+            </tr>
+            <tr v-if="detailGaji.length === 0" class="text-center">
+              <td colspan="8" class="py-[20px] text-gray-500">
+                Belum ada riwayat standar gaji
+              </td>
             </tr>
           </tbody>
         </table>

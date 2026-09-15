@@ -586,7 +586,7 @@ public function salaryOfKary($id, $periode_awal, $periode_akhir)
       //     'netto'      => 0,
       //     'detail'     => []
       // ];
-      $m_standart_gaji = m_standart_gaji::find($kary->m_standart_gaji_id) ?? null;
+      $m_standart_gaji = m_kary_det_gaji::getActiveGaji($kary->id, $periode_awal, $periode_akhir) ?? m_standart_gaji::find($kary->m_standart_gaji_id) ?? null;
       // default summary salary
       $getBasicSalary = $this->factorSalary($m_standart_gaji, $kary, $periode_awal, $periode_akhir);
       $netto = $this->summarySubSalary($getBasicSalary);

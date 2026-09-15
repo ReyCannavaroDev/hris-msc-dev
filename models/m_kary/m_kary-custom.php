@@ -19,6 +19,7 @@ class m_kary extends \App\Models\BasicModels\m_kary
     {
         parent::__construct();
         $this->helper = getCore("Helper");
+        $this->details[] = "m_kary_det_gaji";
     }
 
     public $fileColumns = [
@@ -31,6 +32,11 @@ class m_kary extends \App\Models\BasicModels\m_kary
     public function default_users() :\BelongsTo
     {
         return $this->belongsTo('App\Models\BasicModels\default_users', 'id', 'm_kary_id');
+    }
+
+    public function m_kary_det_gaji()
+    {
+        return $this->hasMany('App\Models\BasicModels\m_kary_det_gaji', 'm_karyawan_id', 'id');
     }
 
     // public function t_cuti() :\BelongsTo

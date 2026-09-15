@@ -108,7 +108,9 @@ class t_potongan_presensi extends \App\Models\BasicModels\t_potongan_presensi
             //     'detail'     => []
             // ];
             $m_standart_gaji =
-                m_standart_gaji::find($kary->m_standart_gaji_id) ?? null;
+                m_kary_det_gaji::getActiveGaji($kary->id, $periode_awal, $periode_akhir)
+                ?? m_standart_gaji::find($kary->m_standart_gaji_id)
+                ?? null;
             // default summary salary
             $getBasicSalary = $this->factorPotongan(
                 $m_standart_gaji,

@@ -112,6 +112,29 @@ const isKontrakFormInvalid = computed(() => {
          !valuesKontrak.duration;
 })
 
+const valuesGaji = reactive({
+  m_standart_gaji_id: null,
+  standart_gaji_desc: '',
+  tipe_karyawan_id: null,
+  tipe_karyawan_value: '',
+  tgl_awal: null,
+  tgl_akhir: null,
+  status: true,
+  keterangan: '',
+  nomor: ''
+})
+
+const formErrorsGaji = ref({})
+let _idGaji = 0
+const detailGaji = ref([])
+
+const isGajiFormInvalid = computed(() => {
+  return !valuesGaji.m_standart_gaji_id ||
+         !valuesGaji.tipe_karyawan_id ||
+         !valuesGaji.tgl_awal ||
+         valuesGaji.status === null || valuesGaji.status === undefined;
+})
+
 const valuesKeluarga = reactive({
   keluarga_id: null,
   nama: null,
@@ -414,6 +437,38 @@ onBeforeMount(async () => {
             })
           } catch (err) {
             console.error('Error saat load kontrak:', err)
+          }
+        }
+      }
+
+      if (initialValues['m_kary_det_gaji']) {
+        detailGaji.value = []
+        for (const item of initialValues['m_kary_det_gaji']) {
+          try {
+            const resSg = await fetch(`${store.server.url_backend}/operation/m_standart_gaji/${item.m_standart_gaji_id}`, {
+              headers: {
+                'Content-Type': 'Application/json',
+                Authorization: `${store.user.token_type} ${store.user.token}`
+              },
+            })
+            const sgData = resSg.ok ? (await resSg.json()).data : null
+
+            const resTipe = await fetch(`${store.server.url_backend}/operation/m_general/${item.tipe_karyawan_id}`, {
+              headers: {
+                'Content-Type': 'Application/json',
+                Authorization: `${store.user.token_type} ${store.user.token}`
+              },
+            })
+            const tipeData = resTipe.ok ? (await resTipe.json()).data : null
+
+            detailGaji.value.push({
+              ...item,
+              standart_gaji_desc: sgData?.desc || sgData?.kode || '-',
+              tipe_karyawan_value: tipeData?.value || '-',
+              _id: ++_idGaji
+            })
+          } catch (err) {
+            console.error('Error saat load riwayat gaji:', err)
           }
         }
       }
@@ -834,6 +889,36 @@ const addKontrak = async () => {
   formErrorsKont.value = {}
 }
 
+const addGaji = async () => {
+  if (isGajiFormInvalid.value) {
+    swal.fire({
+      icon: 'warning',
+      text: 'Lengkapi semua field standar gaji (Standar Gaji, Tipe Karyawan, Tanggal Mulai, dan Status)'
+    })
+    return
+  }
+
+  valuesGaji._id = ++_idGaji
+
+  if (valuesGaji.status === true || valuesGaji.status === 1) {
+    detailGaji.value = detailGaji.value.map(item => ({
+      ...item,
+      status: false
+    }))
+    values.m_standart_gaji_id = valuesGaji.m_standart_gaji_id
+  }
+
+  const newGaji = { ...valuesGaji }
+  detailGaji.value = [...detailGaji.value, newGaji]
+
+  Object.keys(valuesGaji).forEach(key => (valuesGaji[key] = (key === 'status' ? true : null)))
+  formErrorsGaji.value = {}
+}
+
+const removeDetailGaji = (index) => {
+  detailGaji.value.splice(index, 1)
+}
+
 
 
 // Pelatihan
@@ -1065,6 +1150,7 @@ async function onSave() {
     values.m_kary_det_pend = detailPendidikan.value
     values.m_kary_det_pel = detailPelatihan.value
     values.m_kary_det_kontrak = detailKont.value
+    values.m_kary_det_gaji = detailGaji.value
     values.m_kary_det_pk = detailPengalaman.value
     const isCreating = ['Create', 'Copy', 'Tambah'].includes(actionText.value)
     // console.log(values.m_kary_det_kartu.length)
