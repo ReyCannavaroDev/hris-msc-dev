@@ -316,10 +316,10 @@
 
       <div v-if="!isProfile">
         <div class="grid grid-cols-12 items-center">
-          <label class="col-span-12">Standard Gaji<label class="text-red-500 space-x-0 pl-0">*</label></label>
-          <FieldSelect :bind="{ disabled: !actionText, clearable:false }" class="col-span-12 !mt-0 w-full"
+          <label class="col-span-12">Standard Gaji <span class="text-xs text-gray-500 font-normal italic">(Otomatis dari Tab Riwayat Gaji)</span></label>
+          <FieldSelect :bind="{ disabled: true, clearable:false }" class="col-span-12 !mt-0 w-full"
             :value="values.m_standart_gaji_id" @input="v => values.m_standart_gaji_id = v"
-            :errorText="formErrors.m_standart_gaji_id ? 'failed' : ''" label="" placeholder="Pilih Tipe Karyawan"
+            :errorText="formErrors.m_standart_gaji_id ? 'failed' : ''" label="" placeholder="Otomatis terisi dari Tab Riwayat Gaji"
             :hints="formErrors.m_standart_gaji_id" :api="{
                       url: `${store.server.url_backend}/operation/m_standart_gaji`,
                       headers: { 'Content-Type': 'Application/json', Authorization: `${store.user.token_type} ${store.user.token}`},
