@@ -272,6 +272,8 @@ class m_kary_det_kontrak extends \App\Models\BasicModels\m_kary_det_kontrak
                 'm_kary_det_kontrak.tgl_awal',
                 'm_kary_det_kontrak.tgl_akhir'
             )
+            ->where('m_kary.is_active', true)
+            ->whereNull('m_kary.tgl_berhenti')
             ->where('m_kary_det_kontrak.tgl_akhir', '<=', $endDate)
             ->where('m_kary_det_kontrak.status', true)
             ->whereDoesntHave('t_extend_kontrak', function($q) {
