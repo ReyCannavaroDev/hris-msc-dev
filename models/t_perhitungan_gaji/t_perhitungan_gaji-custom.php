@@ -664,7 +664,7 @@ public function salaryOfKary($id, $periode_awal, $periode_akhir)
               ->where(function($q) {
                   $q->whereRaw('m_kary.m_standart_gaji_id in (select s.id from m_standart_gaji s where s.is_active = true)')
                     ->orWhereHas('m_kary_det_gaji', function($qGaji) {
-                        $qGaji->where('m_kary_det_gaji.is_active', true);
+                        $qGaji->where('m_kary_det_gaji.status', true);
                     });
               });
 
