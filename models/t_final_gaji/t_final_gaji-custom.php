@@ -240,8 +240,11 @@ class t_final_gaji extends \App\Models\BasicModels\t_final_gaji
                     $q->when($is_active !== null && $is_active !== '', function ($query) use ($is_active) {
                         return $query->where('is_active', $is_active);
                     })
-                    ->whereHas('m_kary_det_kontrak', function($qKontrak) use ($periode_akhir) {
-                    $qKontrak->whereDate('tgl_awal', '<=', $periode_akhir);
+                    ->where(function($sub) use ($periode_akhir) {
+                        $sub->whereHas('m_kary_det_kontrak', function($qKontrak) use ($periode_akhir) {
+                            $qKontrak->whereDate('tgl_awal', '<=', $periode_akhir);
+                        })
+                        ->orWhereDoesntHave('m_kary_det_kontrak');
                     });
                 })
                 ->get()

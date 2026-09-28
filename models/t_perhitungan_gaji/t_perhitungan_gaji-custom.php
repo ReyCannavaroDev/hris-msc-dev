@@ -638,16 +638,33 @@ public function salaryOfKary($id, $periode_awal, $periode_akhir)
               $date_from = Carbon::parse($req->periode_awal);
               $date_to = Carbon::parse($req->periode_akhir);
 
-              $kary = m_kary::selectRaw("m_kary.*,m_general.value periode_text, m_dir.nama dir, m_divisi.nama divisi")
+              $kary = m_kary::selectRaw("m_kary.*, m_general.value as periode_text, m_dir.nama as dir, m_divisi.nama as divisi")
               ->leftJoin('m_dir', 'm_dir.id', 'm_kary.m_dir_id')
               ->leftJoin('m_divisi', 'm_divisi.id', 'm_kary.m_divisi_id')
               // ->leftJoin('m_dept','m_dept.id','m_kary.m_divisi_id')
               ->join('m_general', 'm_general.id', 'm_kary.periode_gaji_id')
-              ->join('m_kary_det_kontrak as dk', 'dk.m_karyawan_id', 'm_kary.id')
-              ->where('dk.status', true)
-              ->whereDate('dk.tgl_awal', '<=', $date_to)
-              ->whereRaw('m_kary.m_standart_gaji_id in(select s.id from m_standart_gaji s where s.is_active = true)')
-              ;
+              ->where('m_kary.is_active', true)
+              ->where(function($q) use ($date_from) {
+                  $q->whereNull('m_kary.tgl_berhenti')
+                    ->orWhereDate('m_kary.tgl_berhenti', '>=', $date_from);
+              })
+              ->where(function($q) use ($date_from, $date_to) {
+                  $q->whereHas('m_kary_det_kontrak', function($qKontrak) use ($date_from, $date_to) {
+                      $qKontrak->whereDate('tgl_awal', '<=', $date_to)
+                               ->where(function($sub) use ($date_from) {
+                                   $sub->whereDate('tgl_akhir', '>=', $date_from)
+                                       ->orWhereNull('tgl_akhir')
+                                       ->orWhere('status', true);
+                               });
+                  })
+                  ->orWhereDoesntHave('m_kary_det_kontrak');
+              })
+              ->where(function($q) {
+                  $q->whereRaw('m_kary.m_standart_gaji_id in (select s.id from m_standart_gaji s where s.is_active = true)')
+                    ->orWhereHas('m_kary_det_gaji', function($qGaji) {
+                        $qGaji->where('is_active', true);
+                    });
+              });
 
               if ($req->m_dir_id)
                 $kary = $kary->where('m_kary.m_dir_id', $req->m_dir_id);

@@ -33,13 +33,13 @@ class t_potongan_presensi extends \App\Models\BasicModels\t_potongan_presensi
         try {
             $req = app()->request;
             $kary = m_kary::selectRaw(
-                "m_kary.*,m_general.value periode_text, m_dir.nama dir, m_divisi.nama divisi"
+                "m_kary.*, m_general.value as periode_text, m_dir.nama as dir, m_divisi.nama as divisi"
             )
                 ->leftJoin("m_dir", "m_dir.id", "m_kary.m_dir_id")
                 ->leftJoin("m_divisi", "m_divisi.id", "m_kary.m_divisi_id")
                 // ->leftJoin('m_dept','m_dept.id','m_kary.m_divisi_id')
-                ->join("m_general", "m_general.id", "m_kary.periode_gaji_id");
-            // ->whereRaw('m_kary.m_standart_gaji_id in(select s.id from m_standart_gaji s where s.is_active = true)')
+                ->join("m_general", "m_general.id", "m_kary.periode_gaji_id")
+                ->where("m_kary.is_active", true);
 
             if ($req->m_dir_id) {
                 $kary = $kary->where("m_kary.m_dir_id", $req->m_dir_id);
