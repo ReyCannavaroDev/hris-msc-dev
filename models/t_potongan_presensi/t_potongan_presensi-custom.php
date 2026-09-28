@@ -50,8 +50,10 @@ class t_potongan_presensi extends \App\Models\BasicModels\t_potongan_presensi
 
             $kary = $kary->get();
 
-            $date_from = Carbon::parse($req->periode_awal);
-            $date_to = Carbon::parse($req->periode_akhir);
+            $raw_awal = preg_replace('/undefined-?/', '', (string)($req->periode_awal ?? ''));
+            $raw_akhir = preg_replace('/undefined-?/', '', (string)($req->periode_akhir ?? ''));
+            $date_from = Carbon::parse($raw_awal ?: date('Y-m-01'));
+            $date_to = Carbon::parse($raw_akhir ?: date('Y-m-t'));
             // dd($date_from, $date_to);
 
             // Menghitung jumlah bulan antara tanggal_awal dan tanggal_akhir

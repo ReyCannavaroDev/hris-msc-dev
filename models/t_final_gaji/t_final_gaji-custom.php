@@ -238,11 +238,11 @@ class t_final_gaji extends \App\Models\BasicModels\t_final_gaji
                 ->whereHas('m_kary', function($q) use ($is_active, $periode_akhir){
                     //$q->where('is_active', $is_active)
                     $q->when($is_active !== null && $is_active !== '', function ($query) use ($is_active) {
-                        return $query->where('is_active', $is_active);
+                        return $query->where('m_kary.is_active', $is_active);
                     })
                     ->where(function($sub) use ($periode_akhir) {
                         $sub->whereHas('m_kary_det_kontrak', function($qKontrak) use ($periode_akhir) {
-                            $qKontrak->whereDate('tgl_awal', '<=', $periode_akhir);
+                            $qKontrak->whereDate('m_kary_det_kontrak.tgl_awal', '<=', $periode_akhir);
                         })
                         ->orWhereDoesntHave('m_kary_det_kontrak');
                     });

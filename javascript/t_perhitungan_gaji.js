@@ -166,8 +166,13 @@ async function generatePerhitungan() {
 
   const formatDate = (dateStr) => {
     if (!dateStr) return null
-    const [day, month, year] = dateStr.split('/')
-    return `${year}-${month}-${day}`
+    if (typeof dateStr === 'string' && dateStr.includes('/')) {
+      const parts = dateStr.split('/')
+      if (parts.length === 3) {
+        return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`
+      }
+    }
+    return dateStr
   }
 
   const payload = {
