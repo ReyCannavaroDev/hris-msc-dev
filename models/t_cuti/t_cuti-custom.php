@@ -197,10 +197,8 @@ class t_cuti extends \App\Models\BasicModels\t_cuti
             $interval_min = @$this->hitungMenit($arrayData['time_from'], $arrayData['time_to']) ?? 1;
         }
 
-        $alasan = m_general::find($arrayData['alasan_id'])->value ?? null;
-
-        if ($alasan && str_contains(strtolower($alasan), 'dispensasi')) {     
-            $tanggalPengajuan = Carbon::parse($arrayData['date_to']);
+        if (isset($arrayData['date_from']) || isset($arrayData['date_to'])) {     
+            $tanggalPengajuan = Carbon::parse($arrayData['date_from'] ?? $arrayData['date_to']);
             $sekarang = Carbon::now();
 
             $isBulanLalu = $tanggalPengajuan->month == $sekarang->copy()->subMonthNoOverflow()->month && 
@@ -209,19 +207,14 @@ class t_cuti extends \App\Models\BasicModels\t_cuti
             if ($isBulanLalu) {
                 if ($sekarang->day > 5) {
                     return [
-                        //'status' => 'error',
-                        //"model" => $model,
-                        'errors' => 'Batas pengajuan dispensasi bulan lalu maksimal tanggal 5 bulan ini.'
+                        'errors' => 'Batas pengajuan cuti / ijin / dispensasi bulan lalu maksimal tanggal 5 bulan ini.'
                     ];
-                    //abort(422, 'Batas pengajuan dispensasi bulan lalu maksimal tanggal 5 bulan ini.');
                 }
             }
             
             if ($tanggalPengajuan->lt($sekarang->copy()->startOfMonth()->subMonth())) {
                 return [
-                    //'status' => 'error',
-                    //"model" => $model,
-                    'errors' => 'Tidak diperbolehkan mengajukan dispensasi lebih dari bulan lalu.'
+                    'errors' => 'Tidak diperbolehkan mengajukan cuti / ijin / dispensasi lebih dari bulan lalu.'
                 ];
             }        
         }
