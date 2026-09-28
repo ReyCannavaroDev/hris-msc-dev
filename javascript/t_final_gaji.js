@@ -420,15 +420,20 @@ async function generatePPH(popup = true) {
   }
 }
 
+function formatDate(dateStr) {
+  if (!dateStr) return null
+  if (typeof dateStr === 'string' && dateStr.includes('/')) {
+    const parts = dateStr.split('/')
+    if (parts.length === 3) {
+      return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`
+    }
+  }
+  return dateStr
+}
+
 async function generatePerhitungan() {
   detailArr.value = []
   try {
-    const formatDate = (dateStr) => {
-      if (!dateStr) return ''
-      const [day, month, year] = dateStr.split('/')
-      return `${year}-${month}-${day}`
-    }
-
     const dataURL = `${store.server.url_backend}/operation/t_perhitungan_gaji`
     const params = {
       scopes: 'GenerateForFinal',
@@ -451,15 +456,25 @@ async function generatePerhitungan() {
       if ([400, 422].includes(res.status)) {
         const responseJson = await res.json()
         formErrors.value = responseJson.errors || {}
-        throw (responseJson.errors.length ? responseJson.errors[0] : responseJson.message || "Failed when trying to post data")
+        throw (responseJson.errors?.length ? responseJson.errors[0] : responseJson.message || "Failed when trying to post data")
+      } else if (res.status === 500) {
+        const responseJson = await res.json().catch(() => ({}))
+        throw (responseJson.message || "Terjadi kesalahan server saat mengambil data perhitungan gaji.")
       } else {
         throw ("Failed when trying to post data")
       }
     }
 
     const result = await res.json()
-    const resultData = result.data
+    const resultData = result.data || []
     console.log('json', result)
+
+    if (!resultData.length) {
+      return swal.fire({
+        icon: 'warning',
+        text: 'Tidak ditemukan data Perhitungan Gaji untuk periode ini. Pastikan Perhitungan Gaji sudah dilakukan.'
+      })
+    }
 
     resultData.forEach((item) => {
       item._id = ++_id
@@ -475,7 +490,7 @@ async function generatePerhitungan() {
     isBadForm.value = true
     swal.fire({
       icon: 'error',
-      text: err
+      text: err?.message || err || 'Terjadi kesalahan'
     })
   }
 }
@@ -554,27 +569,62 @@ async function posted() {
 }
 
 async function onSave() {
+  const isCreating = ['Create', 'Copy', 'Tambah'].includes(actionText.value)
   let dataSave = JSON.parse(JSON.stringify(values))
-  // merging detail data
-  detailArr.value.forEach((v) => {
-    // transform key
-    if (!v.detail_adj) {
-      v.detail_adj = v.detail_gaji
-    }
-    v.detail_gaji?.forEach((d, i) => {
-      d.seq = i + 1
+  
+  dataSave['periode_awal'] = formatDate(dataSave['periode_awal'])
+  dataSave['periode_akhir'] = formatDate(dataSave['periode_akhir'])
+
+  // Clean and map details so only valid columns are sent (and payload is lightweight)
+  dataSave['t_final_gaji_det'] = detailArr.value.map((v) => {
+    const rincianSource = (v.detail_adj && v.detail_adj.length) ? v.detail_adj : (v.detail_gaji || [])
+    
+    const cleanedRincian = rincianSource.map((d, i) => {
+      const rincianObj = {
+        seq: i + 1,
+        name: d.name || d.label || '',
+        label: d.label || d.name || '',
+        type: d.type || 'Bulanan',
+        factor: d.factor || '+',
+        value_ref: d.value_ref !== undefined && d.value_ref !== null ? d.value_ref : d.value,
+        value: Number(d.value) || 0,
+        can_adjust: d.can_adjust ? 1 : 0,
+        t_potongan_id: d.t_potongan_id || null,
+        t_cuti_id: d.t_cuti_id || null,
+        deskripsi: d.deskripsi || null
+      }
+      if (!isCreating && d.id) {
+        rincianObj.id = d.id
+      }
+      return rincianObj
     })
-    // v.t_final_gaji_det_rincian = v.detail_gaji
-    v.t_final_gaji_det_rincian = v.detail_adj
+
+    const detObj = {
+      t_perhitungan_gaji_id: v.t_perhitungan_gaji_id || (isCreating ? v.id : undefined),
+      m_kary_id: v.m_kary_id,
+      m_kary_dir_id: v.m_kary_dir_id,
+      m_kary_divisi_id: v.m_kary_divisi_id,
+      m_kary_dept_id: v.m_kary_dept_id,
+      periode: v.periode,
+      periode_in_date: formatDate(v.periode_in_date) || dataSave['periode_awal'],
+      total_gaji: Number(v.total_gaji) || 0,
+      total_tax: Number(v.total_tax) || 0,
+      netto: Number(v.netto) || 0,
+      periode_id: v.periode_id || null,
+      deskripsi: v.deskripsi || '',
+      status: v.status || 'DRAFT',
+      t_final_gaji_det_rincian: cleanedRincian
+    }
+
+    if (!isCreating && v.id) {
+      detObj.id = v.id
+    }
+
+    return detObj
   })
-  dataSave['periode_awal'] = dataSave['periode_awal']
-  dataSave['periode_akhir'] = dataSave['periode_akhir']
-  dataSave['t_final_gaji_det'] = detailArr.value
 
   try {
-
     isRequesting.value = true
-    const isCreating = ['Create', 'Copy', 'Tambah'].includes(actionText.value)
     const dataURL = `${store.server.url_backend}/operation${endpointApi}${isCreating ? '' : ('/' + route.params.id)}`
     const res = await fetch(dataURL, {
       method: isCreating ? 'POST' : 'PUT',
@@ -588,7 +638,10 @@ async function onSave() {
       if ([400, 422].includes(res.status)) {
         const responseJson = await res.json()
         formErrors.value = responseJson.errors || {}
-        throw (responseJson.errors.length ? responseJson.errors[0] : responseJson.message || "Failed when trying to post data")
+        throw (responseJson.errors?.length ? responseJson.errors[0] : responseJson.message || "Failed when trying to post data")
+      } else if (res.status === 500) {
+        const responseJson = await res.json().catch(() => ({}))
+        throw (responseJson.message || "Terjadi kesalahan server saat menyimpan data finalisasi gaji.")
       } else {
         throw ("Failed when trying to post data")
       }
@@ -598,10 +651,11 @@ async function onSave() {
     isBadForm.value = true
     swal.fire({
       icon: 'error',
-      text: err
+      text: err?.message || err || 'Terjadi kesalahan'
     })
+  } finally {
+    isRequesting.value = false
   }
-  isRequesting.value = false
 }
 
 //  @else----------------------- LANDING
