@@ -1674,20 +1674,21 @@ class m_kary extends \App\Models\BasicModels\m_kary
     {
         $object = [];
         $detKontrak = m_kary_det_kontrak::where('m_karyawan_id', $this->id)
-            ->orderBy('id')
+            ->orderBy('tgl_awal', 'asc')
+            ->orderBy('id', 'asc')
             ->get(['tgl_awal', 'tgl_akhir', 'status']);
 
         $kontrakAktif = $detKontrak->firstWhere('status', true);
         $kontrakPertama = $detKontrak->first();
 
-        $tglAwal = $kontrakPertama->tgl_awal ?? null;
+        $tglAwal = $this->tgl_masuk ?: ($kontrakPertama->tgl_awal ?? null);
         if ($tglAwal) {
             $start = Carbon::parse($tglAwal);
             $now = Carbon::now();
 
             $object['total_bulan'] = $start->diffInMonths($now);
             $object['total_tahun'] = $start->diffInYears($now);
-            $object['tgl_akhir'] = $kontrakAktif?->tgl_akhir ?? '-';
+            $object['tgl_akhir'] = $kontrakAktif?->tgl_akhir ?? ($detKontrak->last()?->tgl_akhir ?? '-');
         } else {
             $object['total_bulan'] = null;
             $object['total_tahun'] = null;
@@ -1730,6 +1731,7 @@ class m_kary extends \App\Models\BasicModels\m_kary
 
                     $durasi = $kary->hitungDurasi();
                     $tglAkhir = data_get($durasi, 'tgl_akhir');
+                    $tglMasuk = $kary->tgl_masuk ?: optional($kary->m_kary_det_kontrak?->sortBy('tgl_awal')->first())->tgl_awal;
 
                     return [
                         'ID' => $kary->kode ?? '',
@@ -1737,7 +1739,7 @@ class m_kary extends \App\Models\BasicModels\m_kary
                         'GAJI' => number_format($gaji, 2, ',', '.'),
                         'JABATAN' => $kary->m_divisi?->nama ?? '',
                         'UNIT' => $kary->m_dir?->nama ?? '',
-                        'TGL_MASUK' => $format(optional($kary->m_kary_det_kontrak)->first()?->tgl_awal),
+                        'TGL_MASUK' => $format($tglMasuk),
                         'STATUS_TANGGUNGAN' => m_general::find($kary->tanggungan_id)?->value ?? '',
                         'STATUS_KERJA' => m_general::find($kary->tipe_karyawan_id)?->key ?? '',
                         'BULAN' => (string) $durasi['total_bulan'],
