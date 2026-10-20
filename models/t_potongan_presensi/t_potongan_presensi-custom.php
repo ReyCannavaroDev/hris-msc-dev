@@ -336,7 +336,54 @@ class t_potongan_presensi extends \App\Models\BasicModels\t_potongan_presensi
             }
 
             if ($not_attend > 0) {
-                if ($periode_gaji === "HARIAN") {
+                // Cek apakah karyawan berstatus TETAP
+                $isTetap = false;
+                if (!empty($kary->tipe_karyawan_id)) {
+                    $tipeKaryawan = \App\Models\BasicModels\m_general::find($kary->tipe_karyawan_id);
+                    if ($tipeKaryawan && (strtoupper($tipeKaryawan->value) === 'TETAP' || strtoupper($tipeKaryawan->key) === 'T')) {
+                        $isTetap = true;
+                    }
+                }
+
+                if (!$isTetap && !empty($kary->id)) {
+                    // Fallback 1: Cek dari kontrak aktif terbaru
+                    $detKontrak = \App\Models\CustomModels\m_kary_det_kontrak::where('m_karyawan_id', $kary->id)
+                        ->where('status', true)
+                        ->latest('id')
+                        ->first();
+                    if ($detKontrak && !empty($detKontrak->tipe_karyawan_id)) {
+                        $tipeK = \App\Models\BasicModels\m_general::find($detKontrak->tipe_karyawan_id);
+                        if ($tipeK && (strtoupper($tipeK->value) === 'TETAP' || strtoupper($tipeK->key) === 'T')) {
+                            $isTetap = true;
+                        }
+                    }
+                }
+
+                if (!$isTetap && !empty($kary->id)) {
+                    // Fallback 2: Cek dari riwayat gaji aktif terbaru
+                    $detGaji = \App\Models\CustomModels\m_kary_det_gaji::where('m_karyawan_id', $kary->id)
+                        ->where('status', true)
+                        ->latest('id')
+                        ->first();
+                    if ($detGaji && !empty($detGaji->tipe_karyawan_id)) {
+                        $tipeG = \App\Models\BasicModels\m_general::find($detGaji->tipe_karyawan_id);
+                        if ($tipeG && (strtoupper($tipeG->value) === 'TETAP' || strtoupper($tipeG->key) === 'T')) {
+                            $isTetap = true;
+                        }
+                    }
+                }
+
+                if ($isTetap) {
+                    $value = 100000 * $not_attend;
+                    $defaultColumns[] = [
+                        "label" =>
+                            "Potongan Tidak Masuk Kerja (" . $not_attend . " Hari x Rp " . number_format(100000, 0, ',', '.') . ")",
+                        "factor" => "-",
+                        "value" => (int)$value,
+                        "type" => "Bulanan",
+                        "can_adjust" => 1,
+                    ];
+                } elseif ($periode_gaji === "HARIAN") {
                     $value = $gaji_harian * $not_attend;
                     $defaultColumns[] = [
                         "label" =>
