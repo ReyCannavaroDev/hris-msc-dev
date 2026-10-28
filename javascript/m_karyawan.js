@@ -516,6 +516,9 @@ onBeforeMount(async () => {
   for (const key in initialValues) {
     values[key] = initialValues[key]
   }
+  if (actionText.value === 'Copy') {
+    values.kode = ''
+  }
   if (values.m_kary_det_pemb?.length > 0) {
     values.periode_gaji_id = values.m_kary_det_pemb[0].periode_gaji_id
     values.metode_id = values.m_kary_det_pemb[0].metode_id
@@ -1124,9 +1127,21 @@ async function onSave() {
     values.nama_depan = values.nama_lengkap
     values.nama_belakang = values.nama_lengkap
     // values.nama_lengkap = (values.nama_depan ?? '') + ' ' + (values.nama_belakang ?? '')
-    values.m_kary_det_pres = detailPrestasi.value
+    const isCreating = ['Create', 'Copy', 'Tambah'].includes(actionText.value)
+
+    if (values.no_rek && (!values.tipe_id || !values.metode_id || !values.periode_gaji_id)) {
+      isRequesting.value = false
+      swal.fire({
+        icon: 'warning',
+        text: 'Mohon lengkapi Periode Gaji, Tipe Pembayaran, dan Metode Pembayaran terlebih dahulu.'
+      })
+      return
+    }
+
     if (values.periode_gaji_id) {
+      const existingPembId = initialValues.m_kary_det_pemb?.[0]?.id || values.m_kary_det_pemb?.[0]?.id
       values.m_kary_det_pemb = [{
+        ...(existingPembId && !isCreating ? { id: existingPembId } : {}),
         periode_gaji_id: values.periode_gaji_id,
         metode_id: values.metode_id,
         tipe_id: values.tipe_id,
@@ -1152,7 +1167,6 @@ async function onSave() {
     values.m_kary_det_kontrak = detailKont.value
     values.m_kary_det_gaji = detailGaji.value
     values.m_kary_det_pk = detailPengalaman.value
-    const isCreating = ['Create', 'Copy', 'Tambah'].includes(actionText.value)
     // console.log(values.m_kary_det_kartu.length)
     if (isCreating || values.m_kary_det_kartu?.length === 0) {
 
@@ -1224,14 +1238,27 @@ async function onSave() {
       body: JSON.stringify(values)
     })
     if (!res.ok) {
-      // values.m_kary_det_kartu = []
-      if ([400, 422].includes(res.status)) {
+      let errorMsg = "Failed when trying to post data"
+      try {
         const responseJson = await res.json()
-        formErrors.value = responseJson.errors || {}
-        throw (responseJson.errors?.length ? responseJson.errors[0] : responseJson.message || "Failed when trying to post data")
-      } else {
-        throw ("Failed when trying to post data")
+        if (responseJson.errors) {
+          formErrors.value = responseJson.errors || {}
+          if (Array.isArray(responseJson.errors) && responseJson.errors.length) {
+            errorMsg = responseJson.errors[0]
+          } else if (typeof responseJson.errors === 'object') {
+            const firstKey = Object.keys(responseJson.errors)[0]
+            if (firstKey) {
+              const val = responseJson.errors[firstKey]
+              errorMsg = Array.isArray(val) ? val[0] : val
+            }
+          }
+        } else if (responseJson.message) {
+          errorMsg = responseJson.message
+        }
+      } catch (e) {
+        // fallback errorMsg
       }
+      throw errorMsg
     }
     
     await swal.fire({

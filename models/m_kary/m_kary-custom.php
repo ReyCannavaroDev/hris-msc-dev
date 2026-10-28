@@ -44,13 +44,18 @@ class m_kary extends \App\Models\BasicModels\m_kary
 
     public function createBefore($model, $arrayData, $metaData, $id = null)
     {
+        $kode = @$arrayData['kode'];
+        if (empty($kode) || DB::table('m_kary')->where('kode', $kode)->exists() || DB::table('default_users')->where('username', $kode)->exists()) {
+            $kode = $this->helper->generateNomor("KODE KARYAWAN");
+        }
+
         $newArrayData = array_merge($arrayData, [
-            "kode" => @$arrayData['kode'] ?? $this->helper->generateNomor("KODE KARYAWAN"),
+            "kode"    => $kode,
             "comp_id" => auth()->user()->m_comp_id ?? 0,
         ]);
         return [
             "model" => $model,
-            "data" => $newArrayData,
+            "data"  => $newArrayData,
             // "errors" => ['error1']
         ];
     }
