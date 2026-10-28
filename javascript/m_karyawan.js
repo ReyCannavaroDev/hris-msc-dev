@@ -550,6 +550,27 @@ onBeforeMount(async () => {
     tempKTP = values.m_kary_det_kartu[0].ktp_foto
     tempKK = values.m_kary_det_kartu[0].kk_foto
   }
+
+  // Jika aksi Copy, bersihkan berkas foto/lampiran lama agar tidak memicu error masa berlaku upload (30 menit)
+  if (actionText.value === 'Copy') {
+    tempBPJS = ''
+    tempNPWP = ''
+    tempPasfoto = ''
+    tempKTP = ''
+    tempKK = ''
+    values.berkas_lain = ''
+    urlPasFoto.value = ''
+    urlKKFoto.value = ''
+    urlKTPFoto.value = ''
+    urlNPWPFoto.value = ''
+    if (values.m_kary_det_kartu?.length > 0) {
+      values.m_kary_det_kartu[0].ktp_foto = ''
+      values.m_kary_det_kartu[0].pas_foto = ''
+      values.m_kary_det_kartu[0].kk_foto = ''
+      values.m_kary_det_kartu[0].npwp_foto = ''
+      values.m_kary_det_kartu[0].berkas_lain = ''
+    }
+  }
 })
 
 // async function getJadwalKerjaOffice() {
@@ -1276,12 +1297,49 @@ async function onSave() {
     }
   } catch (err) {
     isBadForm.value = true
+    const formattedError = formatErrorMessage(err)
     swal.fire({
       icon: 'error',
-      text: err
+      text: formattedError
     })
   }
   isRequesting.value = false
+}
+
+function formatErrorMessage(msg) {
+  if (!msg || typeof msg !== 'string') return msg || 'Terjadi kesalahan saat memproses data'
+
+  let cleanMsg = msg
+
+  // Sederhanakan nama berkas jika terdapat path/URL panjang /uploads/.../timestamp:::filename
+  if (cleanMsg.includes('/uploads/')) {
+    cleanMsg = cleanMsg.replace(/https?:\/\/[^\s`'"]+\/uploads\/[^\s`'"]*?(?:\d+:::)?([^\/`'"]+)/gi, (match, fileName) => {
+      try {
+        return `"${decodeURIComponent(fileName)}"`
+      } catch (e) {
+        return `"${fileName}"`
+      }
+    })
+  } else if (cleanMsg.includes(':::')) {
+    cleanMsg = cleanMsg.replace(/(?:\d+:::)([^\/`'"]+)/gi, (match, fileName) => {
+      try {
+        return `"${decodeURIComponent(fileName)}"`
+      } catch (e) {
+        return `"${fileName}"`
+      }
+    })
+  }
+
+  // Format rapi untuk pesan validasi upload berkas kedaluwarsa (> 30 menit) atau tidak ada
+  if (cleanMsg.toLowerCase().includes('30 menit') || cleanMsg.toLowerCase().includes('upload ulang')) {
+    cleanMsg = cleanMsg.replace(/[`']/g, '"')
+    return cleanMsg.replace(/File\s+"*([^"]+)"*\s+tidak ada atau telah melebihi 30 menit.*/i, 'Berkas "$1" tidak ditemukan atau sesi upload telah melebihi 30 menit. Silakan upload ulang berkas tersebut dan simpan kembali.')
+  }
+
+  // Bersihkan karakter backtick sisa query database
+  cleanMsg = cleanMsg.replace(/[`]/g, '"')
+
+  return cleanMsg
 }
 
 //  @else----------------------- LANDING
