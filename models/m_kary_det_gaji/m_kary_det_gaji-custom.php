@@ -33,18 +33,28 @@ class m_kary_det_gaji extends \App\Models\BasicModels\m_kary_det_gaji
     public function createAfter($model, $arrayData, $metaData, $id = null)
     {
         // Jika status aktif dan ini record terbaru, sinkronkan ke m_kary.m_standart_gaji_id
-        if ($model->status && $model->m_karyawan_id && $model->m_standart_gaji_id) {
-            \App\Models\BasicModels\m_kary::where('id', $model->m_karyawan_id)->update([
-                'm_standart_gaji_id' => $model->m_standart_gaji_id
+        $det = is_object($model) ? $model : self::find($id);
+        $status = $det ? $det->status : (@$arrayData['status'] ?? false);
+        $mKaryawanId = $det ? $det->m_karyawan_id : (@$arrayData['m_karyawan_id'] ?? null);
+        $mStandartGajiId = $det ? $det->m_standart_gaji_id : (@$arrayData['m_standart_gaji_id'] ?? null);
+
+        if ($status && $mKaryawanId && $mStandartGajiId) {
+            \App\Models\BasicModels\m_kary::where('id', $mKaryawanId)->update([
+                'm_standart_gaji_id' => $mStandartGajiId
             ]);
         }
     }
 
     public function updateAfter($model, $arrayData, $metaData, $id = null)
     {
-        if ($model->status && $model->m_karyawan_id && $model->m_standart_gaji_id) {
-            \App\Models\BasicModels\m_kary::where('id', $model->m_karyawan_id)->update([
-                'm_standart_gaji_id' => $model->m_standart_gaji_id
+        $det = is_object($model) ? $model : self::find($id);
+        $status = $det ? $det->status : (@$arrayData['status'] ?? false);
+        $mKaryawanId = $det ? $det->m_karyawan_id : (@$arrayData['m_karyawan_id'] ?? null);
+        $mStandartGajiId = $det ? $det->m_standart_gaji_id : (@$arrayData['m_standart_gaji_id'] ?? null);
+
+        if ($status && $mKaryawanId && $mStandartGajiId) {
+            \App\Models\BasicModels\m_kary::where('id', $mKaryawanId)->update([
+                'm_standart_gaji_id' => $mStandartGajiId
             ]);
         }
     }
