@@ -348,6 +348,52 @@ function onProcess(typePar) {
   }
 }
 
+async function posted() {
+  const payload = {
+    id: route.params.id
+  }
+  swal.fire({
+    icon: 'warning',
+    text: 'Posting data pengunduran diri?',
+    iconColor: '#1469AE',
+    confirmButtonColor: '#1469AE',
+    showDenyButton: true
+  }).then(async (res) => {
+    if (res.isConfirmed) {
+      try {
+        const dataURL = `${store.server.url_backend}/operation${endpointApi}/post`
+        isRequesting.value = true
+        const response = await fetch(dataURL, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `${store.user.token_type} ${store.user.token}`
+          },
+          body: JSON.stringify(payload)
+        })
+        if (!response.ok) {
+          const responseJson = await response.json()
+          throw new Error(responseJson.message || 'Failed when trying to post data')
+        }
+        const responseJson = await response.json()
+        swal.fire({
+          icon: 'success',
+          text: responseJson.message || 'Data berhasil diposting'
+        })
+        router.replace('/' + modulPath + '?reload=' + (Date.parse(new Date())))
+      } catch (err) {
+        isBadForm.value = true
+        swal.fire({
+          icon: 'error',
+          text: err.message || err || 'Failed when trying to post data'
+        })
+      } finally {
+        isRequesting.value = false
+      }
+    }
+  })
+}
+
 
 //  @else----------------------- LANDING
 // LANDING LAMA 
@@ -440,17 +486,17 @@ const landing = reactive({
     },
     {
       icon: 'location-arrow',
-      title: "Send Approval",
+      title: "Posting Data",
       class: 'bg-rose-700 rounded-lg text-white',
       show: (row) => {
         const status = row.status?.toUpperCase()
-        return ['DRAFT'].includes(status)
+        return ['DRAFT'].includes(status) || (status === 'POSTED' && store.user.data?.is_superadmin)
       },
 
       async click(row) {
         swal.fire({
           icon: 'warning',
-          text: 'Send Approval?',
+          text: row.status?.toUpperCase() === 'POSTED' ? 'Sinkronkan status karyawan menjadi non-aktif?' : 'Posting data pengunduran diri?',
           iconColor: '#1469AE',
           confirmButtonColor: '#1469AE',
 

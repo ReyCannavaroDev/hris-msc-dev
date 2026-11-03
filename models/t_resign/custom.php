@@ -43,51 +43,180 @@ class t_resign extends \App\Models\BasicModels\t_resign
         ];
     }
 
+    public function createAfter($model, $arrayData, $metaData, $id = null)
+    {
+        $this->updateAfter($model, $arrayData, $metaData, $id);
+    }
+
+    public function updateAfter($model, $arrayData, $metaData, $id = null)
+    {
+        $status = $model->status ?? @$arrayData['status'];
+        if ($status === 'POSTED') {
+            $karyId = $model->m_kary_id ?? @$arrayData['m_kary_id'];
+            if ($karyId) {
+                $kary = m_kary::find($karyId);
+                if ($kary) {
+                    $alasan = $model->keterangan ?? @$arrayData['keterangan'] ?? "Pengunduran Diri";
+                    $tipeResignId = $model->tipe_resign_id ?? @$arrayData['tipe_resign_id'];
+                    if ($tipeResignId) {
+                        $tipeResign = \App\Models\BasicModels\m_general::where('id', $tipeResignId)->value('value');
+                        if ($tipeResign) {
+                            $alasan = $tipeResign . ($alasan ? ' - ' . $alasan : '');
+                        }
+                    }
+
+                    $kary->update([
+                        "is_active" => false,
+                        "tgl_berhenti" => $model->date ?? @$arrayData['date'] ?? Carbon::now()->format('Y-m-d'),
+                        "alasan_berhenti" => $alasan,
+                    ]);
+
+                    $user = default_users::where('m_kary_id', $kary->id)->first();
+                    if ($user) {
+                        $user->update(["is_active" => false]);
+                    }
+                }
+
+                $kontrak = m_kary_det_kontrak::where("m_karyawan_id", $karyId)
+                    ->where("status", true)
+                    ->first();
+                if ($kontrak) {
+                    $kontrak->update(["status" => false]);
+                }
+            }
+        }
+    }
+
     public function custom_post($request)
     {
-        $data = t_resign::find($request->id);
-        if (!$data) {
-            return response()->json(["message" => "Data not found"], 404);
+        \DB::beginTransaction();
+        try {
+            $data = t_resign::find($request->id);
+            if (!$data) {
+                return response()->json(["message" => "Data tidak ditemukan"], 404);
+            }
+
+            if (in_array($data->status, ["DRAFT", "POSTED"])) {
+                if ($data->status === "DRAFT") {
+                    $data->update([
+                        "status" => "POSTED",
+                    ]);
+                }
+
+                $kary = m_kary::find($data->m_kary_id);
+                if ($kary) {
+                    $alasan = $data->keterangan ?? "Pengunduran Diri";
+                    if ($data->tipe_resign_id) {
+                        $tipeResign = \App\Models\BasicModels\m_general::where('id', $data->tipe_resign_id)->value('value');
+                        if ($tipeResign) {
+                            $alasan = $tipeResign . ($data->keterangan ? ' - ' . $data->keterangan : '');
+                        }
+                    }
+
+                    $kary->update([
+                        "is_active" => false,
+                        "tgl_berhenti" => $data->date ?? Carbon::now()->format('Y-m-d'),
+                        "alasan_berhenti" => $alasan,
+                    ]);
+
+                    // Nonaktifkan user login di default_users jika ada (aman bila user null)
+                    $user = default_users::where('m_kary_id', $kary->id)->first();
+                    if ($user) {
+                        $user->update([
+                            "is_active" => false,
+                        ]);
+                    }
+                }
+
+                // Nonaktifkan kontrak aktif di m_kary_det_kontrak
+                $kontrak = m_kary_det_kontrak::where(
+                    "m_karyawan_id",
+                    $data->m_kary_id
+                )
+                    ->where("status", true)
+                    ->first();
+                if ($kontrak) {
+                    $kontrak->update([
+                        "status" => false,
+                    ]);
+                }
+
+                \DB::commit();
+
+                return response()->json([
+                    "message" => 'Data pengunduran diri berhasil diposting dan status karyawan berhasil dinonaktifkan',
+                ]);
+            } else {
+                return response()->json(
+                    ["message" => 'Status data tidak valid untuk diposting'],
+                    400
+                );
+            }
+        } catch (\Exception $e) {
+            \DB::rollBack();
+            return response()->json([
+                "message" => "Terjadi kesalahan saat memproses data: " . $e->getMessage(),
+            ], 500);
         }
-        if ($data->status === "DRAFT") {
-            $data->update([
-                "status" => "POSTED",
-            ]);
+    }
 
-            $kary = m_kary::find($data->m_kary_id);
-            if($kary->is_active === false){
-                return response()->json(["message" => "Karyawan sudah tidak aktif"], 404);
-            }
-            if ($kary) {
-                $kary->update([
-                    "is_active" => false,
-                ]);
-                $user = default_users::where('m_kary_id', $kary->id)->first();
-                $user->update([
-                    "is_active" => false,
-                ]);
+    public function custom_posted($request)
+    {
+        return $this->custom_post($request);
+    }
+
+    public function custom_syncKaryawanResign($request = null)
+    {
+        \DB::beginTransaction();
+        try {
+            $resigns = t_resign::where('status', 'POSTED')->get();
+            $count = 0;
+
+            foreach ($resigns as $resign) {
+                if (!$resign->m_kary_id) continue;
+
+                $kary = m_kary::find($resign->m_kary_id);
+                if ($kary) {
+                    $alasan = $resign->keterangan ?? "Pengunduran Diri";
+                    if ($resign->tipe_resign_id) {
+                        $tipeResign = \App\Models\BasicModels\m_general::where('id', $resign->tipe_resign_id)->value('value');
+                        if ($tipeResign) {
+                            $alasan = $tipeResign . ($resign->keterangan ? ' - ' . $resign->keterangan : '');
+                        }
+                    }
+
+                    $kary->update([
+                        "is_active" => false,
+                        "tgl_berhenti" => $resign->date ?? $kary->tgl_berhenti ?? Carbon::now()->format('Y-m-d'),
+                        "alasan_berhenti" => $alasan,
+                    ]);
+
+                    $user = default_users::where('m_kary_id', $kary->id)->first();
+                    if ($user) {
+                        $user->update(["is_active" => false]);
+                    }
+
+                    $kontrak = m_kary_det_kontrak::where("m_karyawan_id", $resign->m_kary_id)
+                        ->where("status", true)
+                        ->first();
+                    if ($kontrak) {
+                        $kontrak->update(["status" => false]);
+                    }
+
+                    $count++;
+                }
             }
 
-            $kontrak = m_kary_det_kontrak::where(
-                "m_karyawan_id",
-                $data->m_kary_id
-            )
-                ->where("status", true)
-                ->first();
-            if ($kontrak) {
-                $kontrak->update([
-                    "status" => false,
-                ]);
-            }
+            \DB::commit();
 
             return response()->json([
-                "message" => 'DRAFT status changed to "POSTED"',
+                "message" => "$count data karyawan berhasil disinkronkan menjadi Inactive sesuai pengunduran diri",
             ]);
-        } else {
-            return response()->json(
-                ["message" => 'POSTED status is not "DRAFT"'],
-                400
-            );
+        } catch (\Exception $e) {
+            \DB::rollBack();
+            return response()->json([
+                "message" => "Gagal sinkronisasi: " . $e->getMessage(),
+            ], 500);
         }
     }
 
