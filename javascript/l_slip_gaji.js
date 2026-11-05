@@ -75,6 +75,9 @@
     if(values.f_id){
       tempGet.push(`f_id=${values.f_id}`)
     }
+    if(values.m_dir_id){
+      tempGet.push(`m_dir_id=${values.m_dir_id}`)
+    }
     if(values.m_kary_id){
       tempGet.push(`m_kary_id=${values.m_kary_id}`)
     }
